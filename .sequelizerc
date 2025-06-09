@@ -1,0 +1,12 @@
+// .sequelizerc (Novo)
+const path = require('path');
+
+module.exports = {
+  // Especifica o caminho exato para o arquivo de configuração correto
+  'config': path.resolve('config', 'config.cjs'),
+
+  // Especifica os caminhos para as outras pastas (boa prática)
+  'models-path': path.resolve('models'),
+  'seeders-path': path.resolve('seeders'),
+  'migrations-path': path.resolve('migrations')
+};

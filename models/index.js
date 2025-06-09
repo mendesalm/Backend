@@ -1,0 +1,96 @@
+import { Sequelize, DataTypes } from 'sequelize';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath, pathToFileURL } from 'url';
+
+// Configurar __dirname para ES Modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
+
+const dbName = process.env.DB_NAME;
+const dbUser = process.env.DB_USER;
+const dbPass = process.env.DB_PASS || null;
+const dbHost = process.env.DB_HOST;
+const dbDialect = process.env.DB_DIALECT;
+
+export const sequelize = new Sequelize(dbName, dbUser, dbPass, {
+    host: dbHost,
+    dialect: dbDialect,
+    logging: false, // Desativado para logs mais limpos, pode ativar para depuração
+});
+
+const db = {};
+db.Sequelize = Sequelize;
+db.sequelize = sequelize;
+
+// --- CORREÇÃO: Array de definições de modelos completo ---
+// Verifique se o seu array corresponde a este, garantindo que todos os modelos estão listados.
+const modelDefinitions = [
+  { key: 'LodgeMember', file: 'lodgemember.model.js' },
+  { key: 'FamilyMember', file: 'familymember.model.js' },
+  { key: 'MasonicSession', file: 'masonicsession.model.js' },
+  { key: 'SessionAttendee', file: 'sessionattendee.model.js' },
+  { key: 'CargoExercido', file: 'cargoexercido.model.js' },
+  { key: 'Ata', file: 'ata.model.js' },
+  { key: 'Publicacao', file: 'publicacao.model.js' },
+  { key: 'Harmonia', file: 'harmonia.model.js' },
+  { key: 'Biblioteca', file: 'biblioteca.model.js' },
+  { key: 'VisitanteSessao', file: 'visitantesessao.model.js' },
+  { key: 'FuncionalidadePermissao', file: 'funcionalidadepermissao.model.js' },
+  { key: 'Comissao', file: 'comissao.model.js' },
+  { key: 'MembroComissao', file: 'membro_comissao.model.js' },
+  { key: 'Visita', file: 'visitacao.model.js' },
+  { key: 'Condecoracao', file: 'condecoracao.model.js' },
+  { key: 'Emprestimo', file: 'emprestimo.model.js' },
+  { key: 'Conta', file: 'conta.model.js' },
+  { key: 'Lancamento', file: 'lancamento.model.js' },
+  { key: 'Aviso', file: 'aviso.model.js' },
+  { key: 'Patrimonio', file: 'patrimonio.model.js' },
+  { key: 'Orcamento', file: 'orcamento.model.js' },
+  { key: 'Reserva', file: 'reserva.model.js' },
+  { key: 'Evento', file: 'evento.model.js' }, // Provavelmente estava em falta
+  { key: 'ParticipanteEvento', file: 'participante_evento.model.js' }, // Provavelmente estava em falta
+  { key: 'MenuItem', file: 'menu_item.model.js' }, // Novo modelo
+  { key: 'FotoEvento', file: 'foto_evento.model.js' }  // Novo modelo
+];
+
+const loadModel = async (modelFileName) => {
+  const absolutePath = path.join(__dirname, modelFileName);
+  const modelURL = pathToFileURL(absolutePath).href;
+  const importedModule = await import(modelURL);
+  return importedModule.default;
+};
+
+export const initModels = async () => {
+  if (db.initialized) {
+    return db;
+  }
+  
+  for (const modelDef of modelDefinitions) {
+    try {
+      const defineFunction = await loadModel(modelDef.file);
+      const model = defineFunction(sequelize, DataTypes);
+      db[modelDef.key] = model;
+    } catch (error) {
+        console.error(`[initModels] FALHA ao carregar o modelo do ficheiro ${modelDef.file}:`, error);
+        process.exit(1);
+    }
+  }
+
+  Object.keys(db).forEach(modelName => {
+    if (db[modelName] && typeof db[modelName].associate === 'function') {
+      try {
+        db[modelName].associate(db);
+      } catch (assocError) {
+        console.error(`[initModels] ERRO ao executar associate() para ${modelName}:`, assocError);
+      }
+    }
+  });
+
+  db.initialized = true;
+  return db;
+};
+
+export default db;
