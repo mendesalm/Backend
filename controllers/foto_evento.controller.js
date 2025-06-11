@@ -2,8 +2,12 @@
 import db from '../models/index.js';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-const { FotoEvento, Evento } = db;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// CORREÇÃO: Removida a desestruturação de modelos do topo do ficheiro.
 
 // Função auxiliar para remover o ficheiro físico
 const removerFicheiro = (filePath) => {
@@ -21,7 +25,7 @@ export const uploadFotos = async (req, res) => {
   }
 
   try {
-    const evento = await Evento.findByPk(eventoId);
+    const evento = await db.Evento.findByPk(eventoId); // Usa db.Evento
     if (!evento) return res.status(404).json({ message: 'Evento não encontrado.' });
     
     const fotosCriadas = [];
@@ -29,7 +33,7 @@ export const uploadFotos = async (req, res) => {
       const pathRelativo = file.path.replace(/\\/g, '/').substring(file.path.indexOf('uploads/') + 'uploads/'.length);
       const legenda = req.body[file.fieldname + '_legenda'] || null;
 
-      const novaFoto = await FotoEvento.create({
+      const novaFoto = await db.FotoEvento.create({ // Usa db.FotoEvento
         path: pathRelativo,
         legenda,
         eventoId: parseInt(eventoId, 10),
@@ -49,13 +53,8 @@ export const uploadFotos = async (req, res) => {
 export const deleteFoto = async (req, res) => {
   const { fotoId } = req.params;
   try {
-    const foto = await FotoEvento.findByPk(fotoId);
+    const foto = await db.FotoEvento.findByPk(fotoId); // Usa db.FotoEvento
     if (!foto) return res.status(404).json({ message: 'Foto não encontrada.' });
-
-    // Regra de Negócio Opcional: permitir que apenas o uploader original ou um admin delete a foto.
-    // if (foto.uploaderId !== req.user.id && req.user.credencialAcesso !== 'Webmaster') {
-    //   return res.status(403).json({ message: 'Você não tem permissão para deletar esta foto.' });
-    // }
     
     removerFicheiro(foto.path);
     await foto.destroy();

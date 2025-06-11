@@ -1,12 +1,12 @@
 // controllers/visitacao.controller.js
 import db from '../models/index.js';
 
-const Visita = db.Visita;
+// CORREÇÃO: Removida a desestruturação de modelos do topo do ficheiro.
 
 // Criar um novo registro de visita
 export const createVisita = async (req, res) => {
   try {
-    const visita = await Visita.create(req.body);
+    const visita = await db.Visita.create(req.body); // Usa db.Visita
     res.status(201).json(visita);
   } catch (error) {
     if (error.name === 'SequelizeValidationError') {
@@ -24,9 +24,9 @@ export const getAllVisitas = async (req, res) => {
     if (lojaVisitada) whereClause.lojaVisitada = { [db.Sequelize.Op.like]: `%${lojaVisitada}%` };
     if (lodgeMemberId) whereClause.lodgeMemberId = lodgeMemberId;
 
-    const visitas = await Visita.findAll({
+    const visitas = await db.Visita.findAll({ // Usa db.Visita
       where: whereClause,
-      include: [{ model: db.LodgeMember, as: 'visitante', attributes: ['id', 'NomeCompleto'] }],
+      include: [{ model: db.LodgeMember, as: 'visitante', attributes: ['id', 'NomeCompleto'] }], // Usa db.LodgeMember
       order: [['dataSessao', 'DESC']],
     });
     res.status(200).json(visitas);
@@ -38,8 +38,8 @@ export const getAllVisitas = async (req, res) => {
 // Obter uma visita por ID
 export const getVisitaById = async (req, res) => {
   try {
-    const visita = await Visita.findByPk(req.params.id, {
-        include: [{ model: db.LodgeMember, as: 'visitante', attributes: ['id', 'NomeCompleto'] }]
+    const visita = await db.Visita.findByPk(req.params.id, { // Usa db.Visita
+        include: [{ model: db.LodgeMember, as: 'visitante', attributes: ['id', 'NomeCompleto'] }] // Usa db.LodgeMember
     });
     if (!visita) {
       return res.status(404).json({ message: 'Registro de visita não encontrado.' });
@@ -53,11 +53,11 @@ export const getVisitaById = async (req, res) => {
 // Atualizar uma visita
 export const updateVisita = async (req, res) => {
   try {
-    const [updated] = await Visita.update(req.body, { where: { id: req.params.id } });
+    const [updated] = await db.Visita.update(req.body, { where: { id: req.params.id } }); // Usa db.Visita
     if (!updated) {
       return res.status(404).json({ message: 'Registro de visita não encontrado.' });
     }
-    const updatedVisita = await Visita.findByPk(req.params.id);
+    const updatedVisita = await db.Visita.findByPk(req.params.id); // Usa db.Visita
     res.status(200).json(updatedVisita);
   } catch (error) {
      if (error.name === 'SequelizeValidationError') {
@@ -70,7 +70,7 @@ export const updateVisita = async (req, res) => {
 // Deletar uma visita
 export const deleteVisita = async (req, res) => {
   try {
-    const deleted = await Visita.destroy({ where: { id: req.params.id } });
+    const deleted = await db.Visita.destroy({ where: { id: req.params.id } }); // Usa db.Visita
     if (!deleted) {
       return res.status(404).json({ message: 'Registro de visita não encontrado.' });
     }

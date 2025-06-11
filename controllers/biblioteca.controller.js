@@ -7,7 +7,8 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const Livro = db.Biblioteca; // Usando o nome do modelo 'Biblioteca' como 'Livro' para clareza
+// CORREÇÃO: Removida a constante 'Livro' do escopo global do módulo.
+// const Livro = db.Biblioteca; 
 
 // Função para remover arquivo, se existir e se for um path local
 const removeFile = (filePath) => {
@@ -37,8 +38,9 @@ export const createLivro = async (req, res) => {
     if (req.file) {
       filePath = req.file.path.replace(/\\/g, '/').substring(req.file.path.replace(/\\/g, '/').indexOf('uploads/') + 'uploads/'.length);
     }
-
-    const novoLivro = await Livro.create({
+    
+    // CORREÇÃO: Usar db.Biblioteca diretamente
+    const novoLivro = await db.Biblioteca.create({
       titulo,
       autores,
       editora,
@@ -48,7 +50,7 @@ export const createLivro = async (req, res) => {
       classificacao,
       observacoes,
       path: filePath,
-      status: 'Disponível', // Novo livro sempre começa como 'Disponível'
+      status: 'Disponível',
       lodgeMemberId,
     });
 
@@ -69,7 +71,8 @@ export const createLivro = async (req, res) => {
 // Obter todos os livros
 export const getAllLivros = async (req, res) => {
   try {
-    const livros = await Livro.findAll({
+    // CORREÇÃO: Usar db.Biblioteca e db.LodgeMember
+    const livros = await db.Biblioteca.findAll({
       include: [{ model: db.LodgeMember, as: 'cadastradoPor', attributes: ['id', 'NomeCompleto'], required: false }],
       order: [['titulo', 'ASC']],
     });
@@ -84,16 +87,16 @@ export const getAllLivros = async (req, res) => {
 export const getLivroById = async (req, res) => {
   try {
     const { id } = req.params;
-    const livro = await Livro.findByPk(id, {
+    // CORREÇÃO: Usar os modelos a partir do objeto `db`
+    const livro = await db.Biblioteca.findByPk(id, {
       include: [
         { model: db.LodgeMember, as: 'cadastradoPor', attributes: ['id', 'NomeCompleto'], required: false },
-        // --- ALTERAÇÃO: INCLUSÃO DO HISTÓRICO DE EMPRÉSTIMOS ---
         {
           model: db.Emprestimo,
           as: 'historicoEmprestimos',
-          required: false, // `required: false` para trazer o livro mesmo que nunca tenha sido emprestado
+          required: false,
           include: [{ model: db.LodgeMember, as: 'membro', attributes: ['id', 'NomeCompleto'] }],
-          order: [['dataEmprestimo', 'DESC']] // Ordena o histórico do mais recente para o mais antigo
+          order: [['dataEmprestimo', 'DESC']]
         }
       ]
     });
@@ -112,7 +115,8 @@ export const getLivroById = async (req, res) => {
 export const updateLivro = async (req, res) => {
   try {
     const { id } = req.params;
-    const livroExistente = await Livro.findByPk(id);
+    // CORREÇÃO: Usar db.Biblioteca
+    const livroExistente = await db.Biblioteca.findByPk(id);
 
     if (!livroExistente) {
       if (req.file && req.file.path) {
@@ -125,7 +129,6 @@ export const updateLivro = async (req, res) => {
     const dadosAtualizados = { ...req.body };
     delete dadosAtualizados.id;
     delete dadosAtualizados.lodgeMemberId;
-    // O status é gerenciado pelos hooks de Emprestimo, então não permitimos sua alteração direta aqui.
     delete dadosAtualizados.status;
 
     let oldFilePath = livroExistente.path;
@@ -135,7 +138,7 @@ export const updateLivro = async (req, res) => {
     }
 
     await livroExistente.update(dadosAtualizados);
-    const livroAtualizado = await Livro.findByPk(id);
+    const livroAtualizado = await db.Biblioteca.findByPk(id); // CORREÇÃO
     res.status(200).json(livroAtualizado);
   } catch (error) {
     console.error('Erro ao atualizar livro:', error);
@@ -154,28 +157,23 @@ export const updateLivro = async (req, res) => {
 export const deleteLivro = async (req, res) => {
   try {
     const { id } = req.params;
-    const livro = await Livro.findByPk(id);
+    // CORREÇÃO: Usar db.Biblioteca
+    const livro = await db.Biblioteca.findByPk(id);
 
     if (!livro) {
       return res.status(404).json({ message: 'Livro não encontrado' });
     }
 
-    // --- ALTERAÇÃO: VERIFICAÇÃO DE STATUS ANTES DE DELETAR ---
     if (livro.status === 'Emprestado') {
-      return res.status(409).json({ // 409 Conflict é um bom status para este caso
+      return res.status(409).json({
         message: `Não é possível deletar o livro "${livro.titulo}" pois ele está atualmente emprestado.`
       });
     }
 
-    // Remover arquivo de capa associado, se existir
     if (livro.path) {
       removeFile(livro.path);
     }
-
-    // Se o livro não está emprestado, pode ser deletado.
-    // A migração de Emprestimos com `onDelete: 'RESTRICT'` na FK `livroId` oferece uma
-    // camada extra de proteção no nível do banco de dados, impedindo a deleção
-    // de um livro que tenha qualquer histórico de empréstimo.
+    
     await livro.destroy({ where: { id } });
     res.status(200).json({ message: 'Livro deletado com sucesso' });
   } catch (error) {

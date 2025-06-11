@@ -26,7 +26,7 @@ db.Sequelize = Sequelize;
 db.sequelize = sequelize;
 
 // --- CORREÇÃO: Array de definições de modelos completo ---
-// Verifique se o seu array corresponde a este, garantindo que todos os modelos estão listados.
+// Garanta que os modelos de Evento estão presentes nesta lista.
 const modelDefinitions = [
   { key: 'LodgeMember', file: 'lodgemember.model.js' },
   { key: 'FamilyMember', file: 'familymember.model.js' },
@@ -50,10 +50,12 @@ const modelDefinitions = [
   { key: 'Patrimonio', file: 'patrimonio.model.js' },
   { key: 'Orcamento', file: 'orcamento.model.js' },
   { key: 'Reserva', file: 'reserva.model.js' },
-  { key: 'Evento', file: 'evento.model.js' }, // Provavelmente estava em falta
-  { key: 'ParticipanteEvento', file: 'participante_evento.model.js' }, // Provavelmente estava em falta
-  { key: 'MenuItem', file: 'menu_item.model.js' }, // Novo modelo
-  { key: 'FotoEvento', file: 'foto_evento.model.js' }  // Novo modelo
+  // ---- ADIÇÕES CRÍTICAS ----
+  { key: 'Evento', file: 'evento.model.js' },
+  { key: 'ParticipanteEvento', file: 'participante_evento.model.js' },
+  // --------------------------
+  { key: 'MenuItem', file: 'menu_item.model.js' },
+  { key: 'FotoEvento', file: 'foto_evento.model.js' }
 ];
 
 const loadModel = async (modelFileName) => {

@@ -30,7 +30,7 @@ router.post(
 // GET /api/sessions - Listar todas as sessões
 router.get(
     '/',
-    authorizeByFeature('listarTodasSessoesMaconicas'), // <-- Nova autorização
+    authorizeByFeature('listarSessoes'), // <-- Nova autorização
     masonicSessionController.getAllSessions
 );
 

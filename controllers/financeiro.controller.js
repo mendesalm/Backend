@@ -1,16 +1,13 @@
 // controllers/financeiro.controller.js
-// VERSÃO ATUALIZADA: Funcionalidades de Gestão de Orçamento foram incorporadas.
 import db from '../models/index.js';
 import { gerarPdfBalancete } from '../utils/pdfGenerator.js';
-const { Orcamento, Lancamento, Conta, LodgeMember, Sequelize } = db;
-const { Op, fn, col } = Sequelize;
+// CORREÇÃO: Removida a desestruturação de modelos do topo do ficheiro.
 
 // --- CRUD para o Plano de Contas ---
 
-// Criar uma nova conta (Receita/Despesa)
 export const createConta = async (req, res) => {
     try {
-        const novaConta = await Conta.create(req.body);
+        const novaConta = await db.Conta.create(req.body);
         res.status(201).json(novaConta);
     } catch (error) {
         if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError') {
@@ -20,20 +17,18 @@ export const createConta = async (req, res) => {
     }
 };
 
-// Listar todas as contas do plano
 export const getAllContas = async (req, res) => {
     try {
-        const contas = await Conta.findAll({ order: [['tipo', 'ASC'], ['nome', 'ASC']] });
+        const contas = await db.Conta.findAll({ order: [['tipo', 'ASC'], ['nome', 'ASC']] });
         res.status(200).json(contas);
     } catch (error) {
         res.status(500).json({ message: 'Erro ao buscar contas.', errorDetails: error.message });
     }
 };
 
-// Obter uma conta específica por ID
 export const getContaById = async (req, res) => {
     try {
-        const conta = await Conta.findByPk(req.params.id);
+        const conta = await db.Conta.findByPk(req.params.id);
         if (!conta) {
             return res.status(404).json({ message: 'Conta não encontrada.' });
         }
@@ -43,15 +38,14 @@ export const getContaById = async (req, res) => {
     }
 };
 
-// Atualizar uma conta existente
 export const updateConta = async (req, res) => {
     try {
         const { id } = req.params;
-        const [updated] = await Conta.update(req.body, { where: { id: id } });
+        const [updated] = await db.Conta.update(req.body, { where: { id: id } });
         if (!updated) {
             return res.status(404).json({ message: 'Conta não encontrada.' });
         }
-        const updatedConta = await Conta.findByPk(id);
+        const updatedConta = await db.Conta.findByPk(id);
         res.status(200).json(updatedConta);
     } catch (error) {
         if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError') {
@@ -61,22 +55,20 @@ export const updateConta = async (req, res) => {
     }
 };
 
-// Deletar uma conta do plano de contas
 export const deleteConta = async (req, res) => {
     try {
         const { id } = req.params;
-        // Regra de Negócio: Não permite deletar uma conta se ela tiver lançamentos associados.
-        const lancamentosCount = await Lancamento.count({ where: { contaId: id } });
+        const lancamentosCount = await db.Lancamento.count({ where: { contaId: id } });
         if (lancamentosCount > 0) {
-            return res.status(409).json({ // 409 Conflict
+            return res.status(409).json({
                 message: `Não é possível deletar esta conta, pois ela já possui ${lancamentosCount} lançamento(s) associado(s).`
             });
         }
-        const deleted = await Conta.destroy({ where: { id: id } });
+        const deleted = await db.Conta.destroy({ where: { id: id } });
         if (!deleted) {
             return res.status(404).json({ message: 'Conta não encontrada.' });
         }
-        res.status(204).send(); // 204 No Content
+        res.status(204).send();
     } catch (error) {
         res.status(500).json({ message: 'Erro ao deletar conta.', errorDetails: error.message });
     }
@@ -85,13 +77,11 @@ export const deleteConta = async (req, res) => {
 
 // --- CRUD para Lançamentos ---
 
-// Criar um novo lançamento (Receita ou Despesa)
 export const createLancamento = async (req, res) => {
   const { descricao, valor, dataLancamento, contaId, membroId, comprovanteUrl } = req.body;
-  const criadoPorId = req.user.id; // ID do usuário logado, fornecido pelo authMiddleware
-
+  const criadoPorId = req.user.id;
   try {
-    const novoLancamento = await Lancamento.create({
+    const novoLancamento = await db.Lancamento.create({
       descricao, valor, dataLancamento, contaId,
       membroId: membroId || null,
       comprovanteUrl: comprovanteUrl || null,
@@ -103,10 +93,10 @@ export const createLancamento = async (req, res) => {
   }
 };
 
-// Listar todos os lançamentos com filtros
 export const getAllLancamentos = async (req, res) => {
   const { mes, ano, tipo, contaId } = req.query;
   const whereClause = {};
+  const { Op } = db.Sequelize;
 
   if (mes && ano) {
     const startDate = new Date(ano, mes - 1, 1);
@@ -119,16 +109,16 @@ export const getAllLancamentos = async (req, res) => {
   
   const includeContaWhere = {};
   if (tipo) {
-      includeContaWhere.tipo = tipo; // 'Receita' ou 'Despesa'
+      includeContaWhere.tipo = tipo;
   }
 
   try {
-    const lancamentos = await Lancamento.findAll({
+    const lancamentos = await db.Lancamento.findAll({
       where: whereClause,
       include: [
-        { model: Conta, as: 'conta', where: includeContaWhere, required: true },
-        { model: LodgeMember, as: 'membroAssociado', attributes: ['id', 'NomeCompleto'], required: false },
-        { model: LodgeMember, as: 'criadoPor', attributes: ['id', 'NomeCompleto'], required: false }
+        { model: db.Conta, as: 'conta', where: includeContaWhere, required: true },
+        { model: db.LodgeMember, as: 'membroAssociado', attributes: ['id', 'NomeCompleto'], required: false },
+        { model: db.LodgeMember, as: 'criadoPor', attributes: ['id', 'NomeCompleto'], required: false }
       ],
       order: [['dataLancamento', 'DESC']],
     });
@@ -141,16 +131,15 @@ export const getAllLancamentos = async (req, res) => {
 
 // --- FUNÇÕES DE ORÇAMENTO ---
 
-// Definir ou atualizar o orçamento para uma conta em um ano específico
 export const setOrcamento = async (req, res) => {
   const { contaId, ano, valorOrcado } = req.body;
   try {
-    const [orcamento, created] = await Orcamento.findOrCreate({
+    const [orcamento, created] = await db.Orcamento.findOrCreate({
       where: { contaId, ano },
       defaults: { valorOrcado }
     });
 
-    if (!created) { // Se já existia, atualiza
+    if (!created) {
       orcamento.valorOrcado = valorOrcado;
       await orcamento.save();
     }
@@ -160,24 +149,24 @@ export const setOrcamento = async (req, res) => {
   }
 };
 
-// Gerar relatório de Orçado vs. Realizado
 export const getRelatorioOrcamentario = async (req, res) => {
     const { ano } = req.query;
     if (!ano) {
         return res.status(400).json({ message: 'O ano é obrigatório para gerar o relatório orçamentário.' });
     }
     try {
-        const contas = await Conta.findAll({
+        const { Op, fn, col } = db.Sequelize;
+        const contas = await db.Conta.findAll({
             include: [{
-                model: Orcamento,
+                model: db.Orcamento,
                 as: 'orcamentos',
                 where: { ano },
-                required: false // Traz contas mesmo sem orçamento definido
+                required: false
             }],
             order: [['tipo', 'ASC'], ['nome', 'ASC']]
         });
         
-        const lancamentosAgregados = await Lancamento.findAll({
+        const lancamentosAgregados = await db.Lancamento.findAll({
             attributes: [
                 'contaId',
                 [fn('SUM', col('valor')), 'valorRealizado']
@@ -213,7 +202,6 @@ export const getRelatorioOrcamentario = async (req, res) => {
 
 // --- Relatórios ---
 
-// Gerar um balancete simples
 export const getBalancete = async (req, res) => {
     const { mes, ano } = req.query;
     if (!mes || !ano) {
@@ -228,7 +216,6 @@ export const getBalancete = async (req, res) => {
     }
 }
 
-// Exportar o balancete e os lançamentos em PDF
 export const exportBalancetePDF = async (req, res) => {
     const { mes, ano } = req.query;
     if (!mes || !ano) {
@@ -236,20 +223,13 @@ export const exportBalancetePDF = async (req, res) => {
     }
 
     try {
-        // 1. Obter os dados do balancete
         const dadosBalancete = await getBalanceteData(mes, ano);
-
-        // 2. Obter os lançamentos do período
         const lancamentos = await getAllLancamentosData(mes, ano);
-
-        // 3. Gerar o documento PDF
         const pdfDoc = gerarPdfBalancete(dadosBalancete, lancamentos);
-
-        // 4. Configurar os headers da resposta para o browser tratar como um download
+        
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename=Balancete_${String(mes).padStart(2, '0')}_${ano}.pdf`);
 
-        // 5. Enviar o PDF como stream para o cliente
         pdfDoc.pipe(res);
         pdfDoc.end();
 
@@ -261,16 +241,17 @@ export const exportBalancetePDF = async (req, res) => {
 
 // Funções auxiliares para buscar os dados e evitar repetição de código
 async function getBalanceteData(mes, ano) {
+    const { Op } = db.Sequelize;
     const startDate = new Date(ano, mes - 1, 1);
     const endDate = new Date(ano, mes, 0);
 
-    const totalReceitas = await Lancamento.sum('valor', {
+    const totalReceitas = await db.Lancamento.sum('valor', {
         where: { dataLancamento: { [Op.between]: [startDate, endDate] } },
-        include: [{ model: Conta, as: 'conta', where: { tipo: 'Receita' } }]
+        include: [{ model: db.Conta, as: 'conta', where: { tipo: 'Receita' } }]
     });
-    const totalDespesas = await Lancamento.sum('valor', {
+    const totalDespesas = await db.Lancamento.sum('valor', {
         where: { dataLancamento: { [Op.between]: [startDate, endDate] } },
-        include: [{ model: Conta, as: 'conta', where: { tipo: 'Despesa' } }]
+        include: [{ model: db.Conta, as: 'conta', where: { tipo: 'Despesa' } }]
     });
     const saldo = (totalReceitas || 0) - (totalDespesas || 0);
 
@@ -283,12 +264,13 @@ async function getBalanceteData(mes, ano) {
 }
 
 async function getAllLancamentosData(mes, ano) {
+    const { Op } = db.Sequelize;
     const startDate = new Date(ano, mes - 1, 1);
     const endDate = new Date(ano, mes, 0);
 
-    return await Lancamento.findAll({
+    return await db.Lancamento.findAll({
       where: { dataLancamento: { [Op.between]: [startDate, endDate] } },
-      include: [{ model: Conta, as: 'conta', required: true }],
+      include: [{ model: db.Conta, as: 'conta', required: true }],
       order: [['dataLancamento', 'ASC']],
     });
 }

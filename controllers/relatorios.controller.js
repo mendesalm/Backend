@@ -9,11 +9,11 @@ import {
   gerarPdfCargosGestao,
   gerarPdfDatasMaconicas,
   gerarPdfEmprestimos,
-  gerarPdfComissoes
+  gerarPdfComissoes,
+  gerarPdfPatrimonio
 } from '../utils/pdfGenerator.js';
 
-const { LodgeMember, MasonicSession, Visita, FamilyMember, Conta, Lancamento, CargoExercido, Emprestimo, Sequelize } = db;
-const { Op, fn, col } = Sequelize;
+// CORREÇÃO: Removida a desestruturação de modelos do topo do ficheiro.
 
 // Função genérica para enviar o PDF na resposta
 const enviarPdf = (res, pdfDoc, nomeArquivo) => {
@@ -28,21 +28,22 @@ const enviarPdf = (res, pdfDoc, nomeArquivo) => {
 export const gerarRelatorioFrequencia = async (req, res) => {
     const { dataInicio, dataFim } = req.query;
     try {
-        const totalSessoesNoPeriodo = await MasonicSession.count({ where: { dataSessao: { [Op.between]: [dataInicio, dataFim] } } });
+        const { Op, fn, col } = db.Sequelize;
+        const totalSessoesNoPeriodo = await db.MasonicSession.count({ where: { dataSessao: { [Op.between]: [dataInicio, dataFim] } } });
         if (totalSessoesNoPeriodo === 0) {
             return res.status(404).json({ message: 'Nenhuma sessão encontrada no período para gerar o relatório.' });
         }
         
-        const membrosAtivos = await LodgeMember.findAll({
+        const membrosAtivos = await db.LodgeMember.findAll({
             attributes: ['id', 'NomeCompleto'],
             where: { Situacao: 'Ativo' },
             order: [['NomeCompleto', 'ASC']]
         });
         
-        const presencasCount = await LodgeMember.findAll({
+        const presencasCount = await db.LodgeMember.findAll({
              attributes: [ 'id', [fn('COUNT', col('sessoesPresente.id')), 'presencas'] ],
             include: [{
-                model: MasonicSession,
+                model: db.MasonicSession,
                 as: 'sessoesPresente',
                 attributes: [],
                 where: { dataSessao: { [Op.between]: [dataInicio, dataFim] } },
@@ -78,7 +79,12 @@ export const gerarRelatorioFrequencia = async (req, res) => {
 export const gerarRelatorioVisitacoes = async (req, res) => {
     const { dataInicio, dataFim } = req.query;
     try {
-        const visitacoes = await Visita.findAll({ where: { dataSessao: { [Op.between]: [dataInicio, dataFim] } }, include: [{ model: LodgeMember, as: 'visitante', attributes: ['NomeCompleto'] }], order: [['dataSessao', 'ASC'], [col('visitante.NomeCompleto'), 'ASC']] });
+        const { Op, col } = db.Sequelize;
+        const visitacoes = await db.Visita.findAll({ 
+            where: { dataSessao: { [Op.between]: [dataInicio, dataFim] } }, 
+            include: [{ model: db.LodgeMember, as: 'visitante', attributes: ['NomeCompleto'] }], 
+            order: [['dataSessao', 'ASC'], [col('visitante.NomeCompleto'), 'ASC']] 
+        });
         const dataInicioFmt = new Date(dataInicio).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
         const dataFimFmt = new Date(dataFim).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
         const pdfDoc = gerarPdfVisitacoes(visitacoes, dataInicioFmt, dataFimFmt);
@@ -88,17 +94,17 @@ export const gerarRelatorioVisitacoes = async (req, res) => {
 
 export const gerarRelatorioMembros = async (req, res) => {
     try {
-        const membros = await LodgeMember.findAll({ where: { Situacao: 'Ativo' }, order: [['NomeCompleto', 'ASC']] });
+        const membros = await db.LodgeMember.findAll({ where: { Situacao: 'Ativo' }, order: [['NomeCompleto', 'ASC']] });
         const pdfDoc = gerarPdfMembros(membros);
         enviarPdf(res, pdfDoc, 'Quadro_de_Obreiros.pdf');
     } catch (error) { res.status(500).json({ message: "Erro ao gerar relatório de membros.", errorDetails: error.message }); }
 };
 
 export const gerarRelatorioAniversariantes = async (req, res) => {
-    const { dataInicio, dataFim } = req.query; // Formato MM-DD
+    const { dataInicio, dataFim } = req.query;
     try {
-        const membros = await LodgeMember.findAll({ where: { Situacao: 'Ativo' }, attributes: ['NomeCompleto', 'DataNascimento'] });
-        const familiares = await FamilyMember.findAll({ include: [{model: LodgeMember, attributes: ['NomeCompleto'], required: true}] });
+        const membros = await db.LodgeMember.findAll({ where: { Situacao: 'Ativo' }, attributes: ['NomeCompleto', 'DataNascimento'] });
+        const familiares = await db.FamilyMember.findAll({ include: [{model: db.LodgeMember, as: 'LodgeMember', attributes: ['NomeCompleto'], required: true}] });
         let aniversariantes = [];
         const normalizarData = (dataStr) => parseInt(dataStr.replace('-', ''), 10);
         const inicioNormalizado = normalizarData(dataInicio);
@@ -119,9 +125,10 @@ export const gerarRelatorioAniversariantes = async (req, res) => {
 export const gerarRelatorioFinanceiroDetalhado = async (req, res) => {
     const { dataInicio, dataFim, contaId } = req.query;
     try {
-        const conta = await Conta.findByPk(contaId);
+        const { Op } = db.Sequelize;
+        const conta = await db.Conta.findByPk(contaId);
         if (!conta) return res.status(404).json({ message: 'Conta não encontrada.' });
-        const lancamentos = await Lancamento.findAll({ where: { contaId, dataLancamento: { [Op.between]: [dataInicio, dataFim] } }, include: [{ model: LodgeMember, as: 'membroAssociado', attributes: ['NomeCompleto'], required: false }], order: [['dataLancamento', 'ASC']] });
+        const lancamentos = await db.Lancamento.findAll({ where: { contaId, dataLancamento: { [Op.between]: [dataInicio, dataFim] } }, include: [{ model: db.LodgeMember, as: 'membroAssociado', attributes: ['NomeCompleto'], required: false }], order: [['dataLancamento', 'ASC']] });
         const dataInicioFmt = new Date(dataInicio).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
         const dataFimFmt = new Date(dataFim).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
         const pdfDoc = gerarPdfFinanceiroDetalhado(conta, lancamentos, dataInicioFmt, dataFimFmt);
@@ -131,7 +138,7 @@ export const gerarRelatorioFinanceiroDetalhado = async (req, res) => {
 
 export const gerarRelatorioCargosGestao = async (req, res) => {
     try {
-        const cargos = await CargoExercido.findAll({ where: { dataFim: null }, include: [{ model: LodgeMember, attributes: ['NomeCompleto'], required: true }], order: [['nomeCargo', 'ASC']] });
+        const cargos = await db.CargoExercido.findAll({ where: { dataFim: null }, include: [{ model: db.LodgeMember, as: 'LodgeMember', attributes: ['NomeCompleto'], required: true }], order: [['nomeCargo', 'ASC']] });
         const pdfDoc = gerarPdfCargosGestao(cargos);
         enviarPdf(res, pdfDoc, 'Relatorio_Cargos_Gestao_Atual.pdf');
     } catch (error) { res.status(500).json({ message: "Erro ao gerar relatório de cargos.", errorDetails: error.message }); }
@@ -140,7 +147,7 @@ export const gerarRelatorioCargosGestao = async (req, res) => {
 export const gerarRelatorioDatasMaconicas = async (req, res) => {
     const { dataInicio, dataFim } = req.query;
     try {
-        const membros = await LodgeMember.findAll({ where: { Situacao: 'Ativo' }, attributes: ['NomeCompleto', 'DataIniciacao', 'DataElevacao', 'DataExaltacao'] });
+        const membros = await db.LodgeMember.findAll({ where: { Situacao: 'Ativo' }, attributes: ['NomeCompleto', 'DataIniciacao', 'DataElevacao', 'DataExaltacao'] });
         let datasComemorativas = [];
         const normalizarData = (dataStr) => parseInt(dataStr.replace('-', ''), 10);
         const inicioNormalizado = normalizarData(dataInicio);
@@ -166,13 +173,13 @@ export const gerarRelatorioEmprestimos = async (req, res) => {
     const { tipo, livroId } = req.query;
     try {
         if (tipo === 'ativos') {
-            const emprestimos = await Emprestimo.findAll({ where: { dataDevolucaoReal: null }, include: [{ model: db.Biblioteca, as: 'livro', attributes: ['titulo'] }, { model: db.LodgeMember, as: 'membro', attributes: ['NomeCompleto'] }], order: [['dataDevolucaoPrevista', 'ASC']] });
+            const emprestimos = await db.Emprestimo.findAll({ where: { dataDevolucaoReal: null }, include: [{ model: db.Biblioteca, as: 'livro', attributes: ['titulo'] }, { model: db.LodgeMember, as: 'membro', attributes: ['NomeCompleto'] }], order: [['dataDevolucaoPrevista', 'ASC']] });
             const pdfDoc = gerarPdfEmprestimos(emprestimos, 'ativos');
             enviarPdf(res, pdfDoc, 'Relatorio_Emprestimos_Ativos.pdf');
         } else if (tipo === 'historico' && livroId) {
             const livro = await db.Biblioteca.findByPk(livroId);
             if (!livro) return res.status(404).json({ message: "Livro não encontrado." });
-            const emprestimos = await Emprestimo.findAll({ where: { livroId: livroId }, include: [{ model: db.LodgeMember, as: 'membro', attributes: ['NomeCompleto'] }], order: [['dataEmprestimo', 'DESC']] });
+            const emprestimos = await db.Emprestimo.findAll({ where: { livroId: livroId }, include: [{ model: db.LodgeMember, as: 'membro', attributes: ['NomeCompleto'] }], order: [['dataEmprestimo', 'DESC']] });
             const pdfDoc = gerarPdfEmprestimos(emprestimos, 'historico', livro);
             enviarPdf(res, pdfDoc, `Relatorio_Historico_${livro.titulo.replace(/\s/g, '_')}.pdf`);
         } else {
@@ -184,16 +191,18 @@ export const gerarRelatorioEmprestimos = async (req, res) => {
 export const gerarRelatorioComissoes = async (req, res) => {
     const { dataInicio, dataFim } = req.query;
     try {
-        const comissoes = await db.Comissao.findAll({ where: { [Op.or]: [{ dataInicio: { [Op.between]: [dataInicio, dataFim] } }, { dataFim: { [Op.between]: [dataInicio, dataFim] } }, { [Op.and]: [{ dataInicio: { [Op.lte]: dataInicio } }, { dataFim: { [Op.gte]: dataFim } }] }] }, include: [{ model: LodgeMember, as: 'membros', attributes: ['NomeCompleto'], through: { attributes: [] } }], order: [['nome', 'ASC']] });
+        const { Op } = db.Sequelize;
+        const comissoes = await db.Comissao.findAll({ where: { [Op.or]: [{ dataInicio: { [Op.between]: [dataInicio, dataFim] } }, { dataFim: { [Op.between]: [dataInicio, dataFim] } }, { [Op.and]: [{ dataInicio: { [Op.lte]: dataInicio } }, { dataFim: { [Op.gte]: dataFim } }] }] }, include: [{ model: db.LodgeMember, as: 'membros', attributes: ['NomeCompleto'], through: { attributes: [] } }], order: [['nome', 'ASC']] });
         const dataInicioFmt = new Date(dataInicio).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
         const dataFimFmt = new Date(dataFim).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
         const pdfDoc = gerarPdfComissoes(comissoes, dataInicioFmt, dataFimFmt);
         enviarPdf(res, pdfDoc, `Relatorio_Comissoes_${dataInicio}_a_${dataFim}.pdf`);
     } catch (error) { res.status(500).json({ message: "Erro ao gerar relatório de comissões.", errorDetails: error.message }); }
 };
+
 export const gerarRelatorioPatrimonio = async (req, res) => {
     try {
-        const todosItens = await Patrimonio.findAll({
+        const todosItens = await db.Patrimonio.findAll({
             order: [['nome', 'ASC']]
         });
 
