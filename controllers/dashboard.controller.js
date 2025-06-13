@@ -1,4 +1,4 @@
-import db from '../models/index.js';
+import db from "../models/index.js";
 const { Sequelize } = db;
 const { Op } = Sequelize;
 
@@ -12,24 +12,26 @@ const getResumoFinanceiroMesAtual = async () => {
   // CORREÇÃO APLICADA AQUI:
   // Adicionamos `attributes: []` ao include para evitar o erro de GROUP BY.
   // E usamos '$conta.tipo$' no where para filtrar pela associação.
-  const totalReceitas = await db.Lancamento.sum('valor', {
-    where: { 
+  const totalReceitas =
+    (await db.Lancamento.sum("valor", {
+      where: {
         dataLancamento: { [Op.between]: [primeiroDia, ultimoDia] },
-        '$conta.tipo$': 'Receita'
-    },
-    include: [{ model: db.Conta, as: 'conta', attributes: [] }]
-  }) || 0;
+        "$conta.tipo$": "Receita",
+      },
+      include: [{ model: db.Conta, as: "conta", attributes: [] }],
+    })) || 0;
 
-  const totalDespesas = await db.Lancamento.sum('valor', {
-    where: { 
+  const totalDespesas =
+    (await db.Lancamento.sum("valor", {
+      where: {
         dataLancamento: { [Op.between]: [primeiroDia, ultimoDia] },
-        '$conta.tipo$': 'Despesa'
-    },
-    include: [{ model: db.Conta, as: 'conta', attributes: [] }]
-  }) || 0;
+        "$conta.tipo$": "Despesa",
+      },
+      include: [{ model: db.Conta, as: "conta", attributes: [] }],
+    })) || 0;
 
   return {
-    periodo: hoje.toLocaleString('pt-BR', { month: 'long', year: 'numeric' }),
+    periodo: hoje.toLocaleString("pt-BR", { month: "long", year: "numeric" }),
     totalReceitas,
     totalDespesas,
     saldo: totalReceitas - totalDespesas,
@@ -37,31 +39,52 @@ const getResumoFinanceiroMesAtual = async () => {
 };
 
 const getProximosAniversariantes = async (dias = 7) => {
-    const hoje = new Date();
-    const dataLimite = new Date();
-    dataLimite.setDate(hoje.getDate() + dias);
+  const hoje = new Date();
+  const dataLimite = new Date();
+  dataLimite.setDate(hoje.getDate() + dias);
 
-    const membros = await db.LodgeMember.findAll({ where: { Situacao: 'Ativo' }, attributes: ['NomeCompleto', 'DataNascimento'] });
-    const familiares = await db.FamilyMember.findAll({ include: [{model: db.LodgeMember, attributes: ['NomeCompleto'], required: true}] });
+  const membros = await db.LodgeMember.findAll({
+    where: { Situacao: "Ativo" },
+    attributes: ["NomeCompleto", "DataNascimento"],
+  });
+  const familiares = await db.FamilyMember.findAll({
+    include: [
+      { model: db.LodgeMember, attributes: ["NomeCompleto"], required: true },
+    ],
+  });
 
-    const todos = [
-        ...membros.map(m => ({ nome: m.NomeCompleto, data: m.DataNascimento, tipo: 'Membro' })),
-        ...familiares.map(f => ({ nome: f.nomeCompleto, data: f.dataNascimento, tipo: `Familiar (${f.parentesco})` }))
-    ];
+  const todos = [
+    ...membros.map((m) => ({
+      nome: m.NomeCompleto,
+      data: m.DataNascimento,
+      tipo: "Membro",
+    })),
+    ...familiares.map((f) => ({
+      nome: f.nomeCompleto,
+      data: f.dataNascimento,
+      tipo: `Familiar (${f.parentesco})`,
+    })),
+  ];
 
-    return todos.filter(pessoa => {
-        if (!pessoa.data) return false;
-        const aniversario = new Date(pessoa.data);
-        aniversario.setFullYear(hoje.getFullYear());
-        if (aniversario < hoje) {
-            aniversario.setFullYear(hoje.getFullYear() + 1);
-        }
-        return aniversario >= hoje && aniversario <= dataLimite;
-    }).map(pessoa => ({
-        nome: pessoa.nome,
-        data: new Date(pessoa.data).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-        tipo: pessoa.tipo
-    })).sort((a,b) => new Date(a.data) - new Date(b.data));
+  return todos
+    .filter((pessoa) => {
+      if (!pessoa.data) return false;
+      const aniversario = new Date(pessoa.data);
+      aniversario.setFullYear(hoje.getFullYear());
+      if (aniversario < hoje) {
+        aniversario.setFullYear(hoje.getFullYear() + 1);
+      }
+      return aniversario >= hoje && aniversario <= dataLimite;
+    })
+    .map((pessoa) => ({
+      nome: pessoa.nome,
+      data: new Date(pessoa.data).toLocaleDateString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+      }),
+      tipo: pessoa.tipo,
+    }))
+    .sort((a, b) => new Date(a.data) - new Date(b.data));
 };
 
 const getProximosEventos = async (dias = 7) => {
@@ -70,17 +93,19 @@ const getProximosEventos = async (dias = 7) => {
   dataLimite.setDate(hoje.getDate() + dias);
   return await db.Evento.findAll({
     where: { dataHoraInicio: { [Op.between]: [hoje, dataLimite] } },
-    order: [['dataHoraInicio', 'ASC']],
+    order: [["dataHoraInicio", "ASC"]],
     limit: 5,
-    attributes: ['id', 'titulo', 'dataHoraInicio', 'local']
+    attributes: ["id", "titulo", "dataHoraInicio", "local"],
   });
 };
 
 const getEmprestimosPendentes = async (membroId) => {
   return await db.Emprestimo.findAll({
     where: { membroId, dataDevolucaoReal: null },
-    include: [{ model: db.Biblioteca, as: 'livro', attributes: ['id', 'titulo'] }],
-    order: [['dataDevolucaoPrevista', 'ASC']]
+    include: [
+      { model: db.Biblioteca, as: "livro", attributes: ["id", "titulo"] },
+    ],
+    order: [["dataDevolucaoPrevista", "ASC"]],
   });
 };
 
@@ -93,15 +118,16 @@ export const getDashboardData = async (req, res) => {
 
     const proximosEventos = await getProximosEventos();
 
-    if (credencialAcesso === 'Webmaster' || credencialAcesso === 'Diretoria') {
-      const [resumoFinanceiro, totalMembros, proximosAniversariantes] = await Promise.all([
-        getResumoFinanceiroMesAtual(),
-        db.LodgeMember.count({ where: { Situacao: 'Ativo' } }),
-        getProximosAniversariantes(15)
-      ]);
+    if (credencialAcesso === "Webmaster" || credencialAcesso === "Diretoria") {
+      const [resumoFinanceiro, totalMembros, proximosAniversariantes] =
+        await Promise.all([
+          getResumoFinanceiroMesAtual(),
+          db.LodgeMember.count({ where: { Situacao: "Ativo" } }),
+          getProximosAniversariantes(15),
+        ]);
 
       dashboardData = {
-        tipo: 'admin',
+        tipo: "admin",
         resumoFinanceiro,
         totalMembros,
         proximosAniversariantes,
@@ -111,7 +137,7 @@ export const getDashboardData = async (req, res) => {
       const emprestimosPendentes = await getEmprestimosPendentes(membroId);
 
       dashboardData = {
-        tipo: 'membro',
+        tipo: "membro",
         emprestimosPendentes,
         proximosEventos,
       };
@@ -120,6 +146,11 @@ export const getDashboardData = async (req, res) => {
     res.status(200).json(dashboardData);
   } catch (error) {
     console.error("Erro ao gerar dados do dashboard:", error);
-    res.status(500).json({ message: "Erro ao gerar dados do dashboard.", errorDetails: error.message });
+    res
+      .status(500)
+      .json({
+        message: "Erro ao gerar dados do dashboard.",
+        errorDetails: error.message,
+      });
   }
 };
