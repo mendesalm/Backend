@@ -58,12 +58,10 @@ export const getAllEventos = async (req, res) => {
     });
     res.status(200).json(eventos);
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Erro ao listar eventos.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao listar eventos.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -109,12 +107,10 @@ export const updateEvento = async (req, res) => {
     const updatedEvento = await db.Evento.findByPk(req.params.id);
     res.status(200).json(updatedEvento);
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Erro ao atualizar evento.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao atualizar evento.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -126,12 +122,10 @@ export const deleteEvento = async (req, res) => {
       return res.status(404).json({ message: "Evento não encontrado." });
     res.status(204).send();
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Erro ao deletar evento.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao deletar evento.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -160,11 +154,9 @@ export const confirmarPresenca = async (req, res) => {
     }
     res.status(200).json(participante);
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Erro ao confirmar presença.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao confirmar presença.",
+      errorDetails: error.message,
+    });
   }
 };

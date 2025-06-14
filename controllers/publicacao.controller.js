@@ -1,8 +1,8 @@
 // backend/controllers/publicacao.controller.js
-import db from '../models/index.js';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import db from "../models/index.js";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -12,7 +12,7 @@ const removeFile = (filePath) => {
   if (!filePath) return;
   // Assumindo que 'uploads' está na raiz do projeto e o path salvo é relativo a 'uploads/'
   // Ex: 'publicacoes/arquivo.pdf'
-  const fullPath = path.resolve(__dirname, '../../uploads/', filePath);
+  const fullPath = path.resolve(__dirname, "../../uploads/", filePath);
   if (fs.existsSync(fullPath)) {
     try {
       fs.unlinkSync(fullPath);
@@ -30,15 +30,26 @@ export const createPublicacao = async (req, res) => {
     const lodgeMemberId = req.user.id;
 
     if (!req.file) {
-      return res.status(400).json({ message: 'Arquivo da publicação é obrigatório.' });
+      return res
+        .status(400)
+        .json({ message: "Arquivo da publicação é obrigatório." });
     }
 
     // Salva o path relativo à pasta 'uploads/', ex: 'publicacoes/nomearquivo.pdf'
-    const filePath = req.file.path.replace(/\\/g, '/').substring(req.file.path.replace(/\\/g, '/').indexOf('uploads/') + 'uploads/'.length);
+    const filePath = req.file.path
+      .replace(/\\/g, "/")
+      .substring(
+        req.file.path.replace(/\\/g, "/").indexOf("uploads/") +
+          "uploads/".length
+      );
 
     if (!db.Publicacao) {
-        console.error("[createPublicacao] Modelo Publicacao não disponível em db.");
-        return res.status(500).json({ message: "Erro interno: Modelo Publicacao não inicializado." });
+      console.error(
+        "[createPublicacao] Modelo Publicacao não disponível em db."
+      );
+      return res
+        .status(500)
+        .json({ message: "Erro interno: Modelo Publicacao não inicializado." });
     }
 
     const novaPublicacao = await db.Publicacao.create({
@@ -51,15 +62,25 @@ export const createPublicacao = async (req, res) => {
     });
     res.status(201).json(novaPublicacao);
   } catch (error) {
-    console.error('Erro ao criar publicação:', error);
+    console.error("Erro ao criar publicação:", error);
     if (req.file && req.file.path) {
-        const multerPath = path.resolve(__dirname, '../../', req.file.path);
-        if (fs.existsSync(multerPath)) fs.unlinkSync(multerPath);
+      const multerPath = path.resolve(__dirname, "../../", req.file.path);
+      if (fs.existsSync(multerPath)) fs.unlinkSync(multerPath);
     }
-    if (error.name === 'SequelizeValidationError') {
-        return res.status(400).json({ message: 'Erro de validação.', errors: error.errors.map(e => ({msg: e.message, path: e.path})) });
+    if (error.name === "SequelizeValidationError") {
+      return res
+        .status(400)
+        .json({
+          message: "Erro de validação.",
+          errors: error.errors.map((e) => ({ msg: e.message, path: e.path })),
+        });
     }
-    res.status(500).json({ message: 'Erro ao criar publicação.', errorDetails: error.message });
+    res
+      .status(500)
+      .json({
+        message: "Erro ao criar publicação.",
+        errorDetails: error.message,
+      });
   }
 };
 
@@ -68,8 +89,12 @@ export const getAllPublicacoes = async (req, res) => {
   try {
     const { tema, nome, grau } = req.query;
     if (!db.Publicacao || !db.LodgeMember) {
-        console.error("[getAllPublicacoes] Modelos Publicacao ou LodgeMember não disponíveis em db.");
-        return res.status(500).json({ message: "Erro interno: Modelos não inicializados." });
+      console.error(
+        "[getAllPublicacoes] Modelos Publicacao ou LodgeMember não disponíveis em db."
+      );
+      return res
+        .status(500)
+        .json({ message: "Erro interno: Modelos não inicializados." });
     }
 
     const whereClause = {};
@@ -79,13 +104,28 @@ export const getAllPublicacoes = async (req, res) => {
 
     const publicacoes = await db.Publicacao.findAll({
       where: whereClause,
-      include: [{ model: db.LodgeMember, as: 'autorOuUploader', attributes: ['id', 'NomeCompleto'], required: false }],
-      order: [['data', 'DESC'], ['nome', 'ASC']],
+      include: [
+        {
+          model: db.LodgeMember,
+          as: "autorOuUploader",
+          attributes: ["id", "NomeCompleto"],
+          required: false,
+        },
+      ],
+      order: [
+        ["data", "DESC"],
+        ["nome", "ASC"],
+      ],
     });
     res.status(200).json(publicacoes);
   } catch (error) {
-    console.error('Erro ao buscar publicações:', error);
-    res.status(500).json({ message: 'Erro ao buscar publicações.', errorDetails: error.message });
+    console.error("Erro ao buscar publicações:", error);
+    res
+      .status(500)
+      .json({
+        message: "Erro ao buscar publicações.",
+        errorDetails: error.message,
+      });
   }
 };
 
@@ -94,19 +134,35 @@ export const getPublicacaoById = async (req, res) => {
   try {
     const { id } = req.params;
     if (!db.Publicacao || !db.LodgeMember) {
-        console.error("[getPublicacaoById] Modelos Publicacao ou LodgeMember não disponíveis em db.");
-        return res.status(500).json({ message: "Erro interno: Modelos não inicializados." });
+      console.error(
+        "[getPublicacaoById] Modelos Publicacao ou LodgeMember não disponíveis em db."
+      );
+      return res
+        .status(500)
+        .json({ message: "Erro interno: Modelos não inicializados." });
     }
     const publicacao = await db.Publicacao.findByPk(id, {
-      include: [{ model: db.LodgeMember, as: 'autorOuUploader', attributes: ['id', 'NomeCompleto'], required: false }],
+      include: [
+        {
+          model: db.LodgeMember,
+          as: "autorOuUploader",
+          attributes: ["id", "NomeCompleto"],
+          required: false,
+        },
+      ],
     });
     if (!publicacao) {
-      return res.status(404).json({ message: 'Publicação não encontrada.' });
+      return res.status(404).json({ message: "Publicação não encontrada." });
     }
     res.status(200).json(publicacao);
   } catch (error) {
-    console.error('Erro ao buscar publicação por ID:', error);
-    res.status(500).json({ message: 'Erro ao buscar publicação por ID.', errorDetails: error.message });
+    console.error("Erro ao buscar publicação por ID:", error);
+    res
+      .status(500)
+      .json({
+        message: "Erro ao buscar publicação por ID.",
+        errorDetails: error.message,
+      });
   }
 };
 
@@ -115,17 +171,21 @@ export const updatePublicacao = async (req, res) => {
   try {
     const { id } = req.params;
     if (!db.Publicacao) {
-        console.error("[updatePublicacao] Modelo Publicacao não disponível em db.");
-        return res.status(500).json({ message: "Erro interno: Modelo Publicacao não inicializado." });
+      console.error(
+        "[updatePublicacao] Modelo Publicacao não disponível em db."
+      );
+      return res
+        .status(500)
+        .json({ message: "Erro interno: Modelo Publicacao não inicializado." });
     }
     const publicacaoExistente = await db.Publicacao.findByPk(id);
 
     if (!publicacaoExistente) {
       if (req.file && req.file.path) {
-        const multerPath = path.resolve(__dirname, '../../', req.file.path);
+        const multerPath = path.resolve(__dirname, "../../", req.file.path);
         if (fs.existsSync(multerPath)) fs.unlinkSync(multerPath);
       }
-      return res.status(404).json({ message: 'Publicação não encontrada.' });
+      return res.status(404).json({ message: "Publicação não encontrada." });
     }
 
     const dadosAtualizados = { ...req.body };
@@ -137,24 +197,46 @@ export const updatePublicacao = async (req, res) => {
       if (oldFilePath) {
         removeFile(oldFilePath);
       }
-      dadosAtualizados.path = req.file.path.replace(/\\/g, '/').substring(req.file.path.replace(/\\/g, '/').indexOf('uploads/') + 'uploads/'.length);
+      dadosAtualizados.path = req.file.path
+        .replace(/\\/g, "/")
+        .substring(
+          req.file.path.replace(/\\/g, "/").indexOf("uploads/") +
+            "uploads/".length
+        );
     }
 
     await publicacaoExistente.update(dadosAtualizados);
     const publicacaoAtualizada = await db.Publicacao.findByPk(id, {
-        include: [{ model: db.LodgeMember, as: 'autorOuUploader', attributes: ['id', 'NomeCompleto'], required: false }]
+      include: [
+        {
+          model: db.LodgeMember,
+          as: "autorOuUploader",
+          attributes: ["id", "NomeCompleto"],
+          required: false,
+        },
+      ],
     });
     res.status(200).json(publicacaoAtualizada);
   } catch (error) {
-    console.error('Erro ao atualizar publicação:', error);
+    console.error("Erro ao atualizar publicação:", error);
     if (req.file && req.file.path) {
-        const multerPath = path.resolve(__dirname, '../../', req.file.path);
-        if (fs.existsSync(multerPath)) fs.unlinkSync(multerPath);
+      const multerPath = path.resolve(__dirname, "../../", req.file.path);
+      if (fs.existsSync(multerPath)) fs.unlinkSync(multerPath);
     }
-    if (error.name === 'SequelizeValidationError') {
-        return res.status(400).json({ message: 'Erro de validação.', errors: error.errors.map(e => ({msg: e.message, path: e.path})) });
+    if (error.name === "SequelizeValidationError") {
+      return res
+        .status(400)
+        .json({
+          message: "Erro de validação.",
+          errors: error.errors.map((e) => ({ msg: e.message, path: e.path })),
+        });
     }
-    res.status(500).json({ message: 'Erro ao atualizar publicação.', errorDetails: error.message });
+    res
+      .status(500)
+      .json({
+        message: "Erro ao atualizar publicação.",
+        errorDetails: error.message,
+      });
   }
 };
 
@@ -163,22 +245,31 @@ export const deletePublicacao = async (req, res) => {
   try {
     const { id } = req.params;
     if (!db.Publicacao) {
-        console.error("[deletePublicacao] Modelo Publicacao não disponível em db.");
-        return res.status(500).json({ message: "Erro interno: Modelo Publicacao não inicializado." });
+      console.error(
+        "[deletePublicacao] Modelo Publicacao não disponível em db."
+      );
+      return res
+        .status(500)
+        .json({ message: "Erro interno: Modelo Publicacao não inicializado." });
     }
     const publicacao = await db.Publicacao.findByPk(id);
 
     if (!publicacao) {
-      return res.status(404).json({ message: 'Publicação não encontrada.' });
+      return res.status(404).json({ message: "Publicação não encontrada." });
     }
 
     if (publicacao.path) {
       removeFile(publicacao.path);
     }
     await publicacao.destroy();
-    res.status(200).json({ message: 'Publicação deletada com sucesso.' });
+    res.status(200).json({ message: "Publicação deletada com sucesso." });
   } catch (error) {
-    console.error('Erro ao deletar publicação:', error);
-    res.status(500).json({ message: 'Erro ao deletar publicação.', errorDetails: error.message });
+    console.error("Erro ao deletar publicação:", error);
+    res
+      .status(500)
+      .json({
+        message: "Erro ao deletar publicação.",
+        errorDetails: error.message,
+      });
   }
 };

@@ -74,12 +74,10 @@ export const getMyProfile = async (req, res) => {
       return res.status(404).json({ message: "Maçom não encontrado." });
     res.status(200).json(member);
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Erro ao buscar dados do perfil.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao buscar dados do perfil.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -135,21 +133,17 @@ export const updateMyProfile = async (req, res) => {
       resetPasswordExpires,
       ...memberResponse
     } = updatedMember.toJSON();
-    res
-      .status(200)
-      .json({
-        message: "Perfil atualizado com sucesso!",
-        member: memberResponse,
-      });
+    res.status(200).json({
+      message: "Perfil atualizado com sucesso!",
+      member: memberResponse,
+    });
   } catch (error) {
     await t.rollback();
     console.error("Erro ao atualizar perfil:", error);
-    res
-      .status(500)
-      .json({
-        message: "Erro ao atualizar perfil.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao atualizar perfil.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -186,11 +180,53 @@ export const createLodgeMember = async (req, res) => {
 
 export const getAllLodgeMembers = async (req, res) => {
   try {
-    const members = await db.LodgeMember.findAll({
-      attributes: { exclude: ["SenhaHash"] },
-      order: [["NomeCompleto", "ASC"]],
+    const {
+      page = 1,
+      limit = 10,
+      sortBy = "NomeCompleto",
+      order = "ASC",
+      search,
+      statusCadastro,
+    } = req.query;
+    const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
+
+    const whereClause = {};
+    if (statusCadastro) {
+      whereClause.statusCadastro = statusCadastro;
+    }
+    if (search) {
+      const { Op } = db.Sequelize;
+      whereClause[Op.or] = [
+        { NomeCompleto: { [Op.like]: `%${search}%` } },
+        { Email: { [Op.like]: `%${search}%` } },
+        { CIM: { [Op.like]: `%${search}%` } },
+      ];
+    }
+
+    const { count, rows } = await db.LodgeMember.findAndCountAll({
+      where: whereClause,
+      attributes: {
+        exclude: [
+          "SenhaHash",
+          "resetPasswordToken",
+          "resetPasswordExpires",
+          "emailVerificationToken",
+          "emailVerificationExpires",
+        ],
+      },
+      limit: parseInt(limit, 10),
+      offset,
+      order: [[sortBy, order.toUpperCase()]],
     });
-    res.status(200).json(members);
+
+    res.status(200).json({
+      data: rows,
+      pagination: {
+        totalItems: count,
+        totalPages: Math.ceil(count / limit),
+        currentPage: parseInt(page, 10),
+      },
+    });
   } catch (error) {
     res
       .status(500)
@@ -217,12 +253,10 @@ export const getLodgeMemberById = async (req, res) => {
       return res.status(404).json({ message: "Maçom não encontrado." });
     res.status(200).json(member);
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Erro ao buscar maçom por ID.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao buscar maçom por ID.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -303,12 +337,10 @@ export const updateLodgeMemberById = async (req, res) => {
       include: ["familiares"],
     });
     const { SenhaHash, ...memberResponse } = updatedMember.toJSON();
-    res
-      .status(200)
-      .json({
-        message: "Maçom atualizado com sucesso!",
-        member: memberResponse,
-      });
+    res.status(200).json({
+      message: "Maçom atualizado com sucesso!",
+      member: memberResponse,
+    });
   } catch (error) {
     await t.rollback();
     console.error(
@@ -329,12 +361,10 @@ export const updateLodgeMemberById = async (req, res) => {
         .json({ message: "Erro de validação nos dados fornecidos.", errors });
     }
 
-    res
-      .status(500)
-      .json({
-        message: "Erro interno no servidor ao atualizar maçom.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro interno no servidor ao atualizar maçom.",
+      errorDetails: error.message,
+    });
   }
 };
 
