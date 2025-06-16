@@ -1,325 +1,394 @@
-// backend/controllers/harmonia.controller.js
+// controllers/harmonia.controller.js
 import db from "../models/index.js";
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+/**
+ * Função auxiliar para remover o arquivo de música do disco de forma segura.
+ * @param {string} urlPath - O caminho da URL como salvo no DB (ex: '/uploads/harmonia/musica.mp3').
+ */
+const removeAudioFile = (urlPath) => {
+  if (!urlPath) return;
+  try {
+    // Remove a barra inicial para que path.join funcione corretamente
+    const relativePath = urlPath.startsWith("/")
+      ? urlPath.substring(1)
+      : urlPath;
+    const fullPath = path.resolve(process.cwd(), relativePath);
 
-// Função para remover arquivo, se existir e se for um path local
-const removeFile = (filePath) => {
-  if (
-    !filePath ||
-    filePath.startsWith("http://") ||
-    filePath.startsWith("https://")
-  ) {
-    // Não tenta remover URLs
-    return;
-  }
-  // Assumindo que 'uploads' está na raiz do projeto, e este controller está em 'backend/controllers'
-  const fullPath = path.resolve(
-    __dirname,
-    "../../uploads/",
-    filePath.substring(filePath.indexOf("harmonia/"))
-  ); // Ajuste se a estrutura de path salva for diferente
-  if (fs.existsSync(fullPath)) {
-    try {
+    if (fs.existsSync(fullPath)) {
       fs.unlinkSync(fullPath);
-      console.log(`Arquivo removido: ${fullPath}`);
-    } catch (err) {
-      console.error(`Erro ao remover arquivo ${fullPath}:`, err);
+      console.log(`Arquivo de áudio removido: ${fullPath}`);
     }
-  } else {
-    // console.warn(`Arquivo não encontrado para remoção: ${fullPath}`);
+  } catch (err) {
+    console.error(`Erro ao tentar remover arquivo de áudio:`, err);
   }
 };
 
-// Criar um novo item de harmonia
-export const createItemHarmonia = async (req, res) => {
+// --- Lógica Principal do Player ---
+export const getSequenciaByTipoSessao = async (req, res) => {
+  const { tipoSessaoId } = req.params;
   try {
-    const { categoria, subcategoria, titulo, autor } = req.body;
-    const lodgeMemberId = req.user.id; // Usuário logado que está cadastrando
-    let filePath = req.body.path || null; // Permite que um link seja enviado no corpo
-
-    if (req.file) {
-      // Se um arquivo foi upado via multer
-      // O path salvo pelo multer já é relativo à pasta 'uploads', ex: 'uploads/harmonia/arquivo.mp3'
-      // Precisamos salvar um path que possa ser servido estaticamente ou identificado.
-      // Se o multer salva em 'backend/uploads/harmonia/arquivo.mp3', e '/uploads' é servido estaticamente
-      // a partir de 'backend/uploads', então o path a ser salvo seria 'harmonia/arquivo.mp3'
-      filePath = req.file.path
-        .replace(/\\/g, "/")
-        .substring(
-          req.file.path.replace(/\\/g, "/").indexOf("uploads/") +
-            "uploads/".length
-        );
-    }
-
-    if (!db.Harmonia) {
-      console.error(
-        "[createItemHarmonia] Modelo Harmonia não disponível em db."
-      );
-      return res
-        .status(500)
-        .json({ message: "Erro interno: Modelo Harmonia não inicializado." });
-    }
-
-    const novoItem = await db.Harmonia.create({
-      categoria: categoria || null,
-      subcategoria: subcategoria || null,
-      titulo,
-      autor: autor || null,
-      path: filePath,
-      lodgeMemberId,
+    const tipoSessao = await db.TipoSessao.findByPk(tipoSessaoId, {
+      include: [
+        {
+          model: db.Playlist,
+          as: "playlists",
+          through: { attributes: [] },
+          include: [
+            {
+              model: db.Musica,
+              as: "musicas",
+              attributes: ["id", "titulo", "autor", "path"],
+            },
+          ],
+        },
+      ],
+      order: [
+        [
+          { model: db.Playlist, as: "playlists" },
+          db.TipoSessaoPlaylist,
+          "ordem",
+          "ASC",
+        ],
+      ],
     });
-    res.status(201).json(novoItem);
-  } catch (error) {
-    console.error("Erro ao criar item de harmonia:", error);
-    if (req.file && req.file.path) {
-      // Usa o path original do multer para remoção em caso de erro
-      const multerPath = path.resolve(__dirname, "../../", req.file.path);
-      if (fs.existsSync(multerPath)) fs.unlinkSync(multerPath);
-    }
-    if (error.name === "SequelizeValidationError") {
+
+    if (!tipoSessao) {
       return res
-        .status(400)
-        .json({
-          message: "Erro de validação.",
-          errors: error.errors.map((e) => ({ msg: e.message, path: e.path })),
-        });
-    }
-    res
-      .status(500)
-      .json({
-        message: "Erro ao criar item de harmonia",
-        errorDetails: error.message,
-      });
-  }
-};
-
-// Obter todos os itens de harmonia (com filtro opcional por categoria/subcategoria)
-export const getAllItensHarmonia = async (req, res) => {
-  try {
-    const { categoria, subcategoria, titulo, autor } = req.query;
-
-    if (!db.Harmonia || !db.LodgeMember) {
-      console.error(
-        "[getAllItensHarmonia] Modelo Harmonia ou LodgeMember não disponível em db."
-      );
-      return res
-        .status(500)
-        .json({ message: "Erro interno: Modelos não inicializados." });
+        .status(404)
+        .json({ message: "Tipo de sessão não encontrado." });
     }
 
-    const whereClause = {};
-    if (categoria)
-      whereClause.categoria = { [db.Sequelize.Op.like]: `%${categoria}%` };
-    if (subcategoria)
-      whereClause.subcategoria = {
-        [db.Sequelize.Op.like]: `%${subcategoria}%`,
+    const sequenciaFinal = tipoSessao.playlists.map((playlist) => {
+      let musicaSorteada = null;
+      if (playlist.musicas && playlist.musicas.length > 0) {
+        const indiceSorteado = Math.floor(
+          Math.random() * playlist.musicas.length
+        );
+        musicaSorteada = playlist.musicas[indiceSorteado];
+      }
+      return {
+        playlist: { id: playlist.id, nome: playlist.nome },
+        musicaSorteada: musicaSorteada,
       };
-    if (titulo) whereClause.titulo = { [db.Sequelize.Op.like]: `%${titulo}%` };
-    if (autor) whereClause.autor = { [db.Sequelize.Op.like]: `%${autor}%` };
-
-    const itens = await db.Harmonia.findAll({
-      where: whereClause,
-      include: [
-        {
-          model: db.LodgeMember,
-          as: "cadastradoPor",
-          attributes: ["id", "NomeCompleto"],
-          required: false,
-        },
-      ],
-      order: [["titulo", "ASC"]],
     });
-    res.status(200).json(itens);
+
+    res.status(200).json({
+      nome: tipoSessao.nome,
+      sequencia: sequenciaFinal,
+    });
   } catch (error) {
-    console.error("Erro ao buscar itens de harmonia:", error);
+    console.error("Erro ao buscar sequência de harmonia:", error);
     res
       .status(500)
       .json({
-        message: "Erro ao buscar itens de harmonia",
+        message: "Erro ao buscar sequência de harmonia.",
         errorDetails: error.message,
       });
   }
 };
 
-// Obter um item de harmonia pelo ID
-export const getItemHarmoniaById = async (req, res) => {
+// --- CRUD para Tipos de Sessão ---
+export const getAllTiposSessao = async (req, res) => {
   try {
-    const { id } = req.params;
-    if (!db.Harmonia || !db.LodgeMember) {
-      console.error(
-        "[getItemHarmoniaById] Modelo Harmonia ou LodgeMember não disponível em db."
-      );
-      return res
-        .status(500)
-        .json({ message: "Erro interno: Modelos não inicializados." });
-    }
-    const item = await db.Harmonia.findByPk(id, {
-      include: [
-        {
-          model: db.LodgeMember,
-          as: "cadastradoPor",
-          attributes: ["id", "NomeCompleto"],
-          required: false,
-        },
-      ],
-    });
-    if (!item) {
-      return res
-        .status(404)
-        .json({ message: "Item de harmonia não encontrado" });
-    }
-    res.status(200).json(item);
+    const tipos = await db.TipoSessao.findAll({ order: [["nome", "ASC"]] });
+    res.status(200).json(tipos);
   } catch (error) {
-    console.error("Erro ao buscar item de harmonia por ID:", error);
     res
       .status(500)
       .json({
-        message: "Erro ao buscar item de harmonia por ID",
+        message: "Erro ao buscar tipos de sessão.",
+        errorDetails: error.message,
+      });
+  }
+};
+export const getTipoSessaoById = async (req, res) => {
+  try {
+    const tipoSessao = await db.TipoSessao.findByPk(req.params.id, {
+      include: [
+        {
+          model: db.Playlist,
+          as: "playlists",
+          through: { attributes: ["ordem"] },
+        },
+      ],
+    });
+    if (!tipoSessao)
+      return res
+        .status(404)
+        .json({ message: "Tipo de sessão não encontrado." });
+    res.status(200).json(tipoSessao);
+  } catch (error) {
+    res
+      .status(500)
+      .json({
+        message: "Erro ao buscar tipo de sessão.",
+        errorDetails: error.message,
+      });
+  }
+};
+export const createTipoSessao = async (req, res) => {
+  try {
+    const novoTipo = await db.TipoSessao.create(req.body);
+    res.status(201).json(novoTipo);
+  } catch (error) {
+    res
+      .status(400)
+      .json({
+        message: "Erro ao criar tipo de sessão.",
+        errorDetails: error.message,
+      });
+  }
+};
+export const updateTipoSessao = async (req, res) => {
+  try {
+    const [updated] = await db.TipoSessao.update(req.body, {
+      where: { id: req.params.id },
+    });
+    if (!updated)
+      return res
+        .status(404)
+        .json({ message: "Tipo de sessão não encontrado." });
+    const updatedItem = await db.TipoSessao.findByPk(req.params.id);
+    res.status(200).json(updatedItem);
+  } catch (error) {
+    res
+      .status(400)
+      .json({
+        message: "Erro ao atualizar tipo de sessão.",
+        errorDetails: error.message,
+      });
+  }
+};
+export const deleteTipoSessao = async (req, res) => {
+  try {
+    const deleted = await db.TipoSessao.destroy({
+      where: { id: req.params.id },
+    });
+    if (!deleted)
+      return res
+        .status(404)
+        .json({ message: "Tipo de sessão não encontrado." });
+    res.status(204).send();
+  } catch (error) {
+    res
+      .status(500)
+      .json({
+        message: "Erro ao deletar tipo de sessão.",
         errorDetails: error.message,
       });
   }
 };
 
-// Atualizar um item de harmonia
-export const updateItemHarmonia = async (req, res) => {
+// --- CRUD para Playlists ---
+export const getAllPlaylists = async (req, res) => {
   try {
-    const { id } = req.params;
-    if (!db.Harmonia) {
-      console.error(
-        "[updateItemHarmonia] Modelo Harmonia não disponível em db."
-      );
-      return res
-        .status(500)
-        .json({ message: "Erro interno: Modelo Harmonia não inicializado." });
-    }
-    const itemExistente = await db.Harmonia.findByPk(id);
-
-    if (!itemExistente) {
-      if (req.file && req.file.path) {
-        // Se um arquivo foi enviado para um item inexistente
-        const multerPath = path.resolve(__dirname, "../../", req.file.path);
-        if (fs.existsSync(multerPath)) fs.unlinkSync(multerPath);
-      }
-      return res
-        .status(404)
-        .json({ message: "Item de harmonia não encontrado" });
-    }
-
-    const dadosAtualizados = { ...req.body };
-    delete dadosAtualizados.id;
-    delete dadosAtualizados.lodgeMemberId; // Não permitir alteração de quem cadastrou
-
-    let oldFilePath = itemExistente.path;
-
-    if (req.file) {
-      // Novo arquivo enviado
-      if (
-        oldFilePath &&
-        !(
-          oldFilePath.startsWith("http://") ||
-          oldFilePath.startsWith("https://")
-        )
-      ) {
-        removeFile(oldFilePath); // Remove o arquivo antigo se não for URL
-      }
-      dadosAtualizados.path = req.file.path
-        .replace(/\\/g, "/")
-        .substring(
-          req.file.path.replace(/\\/g, "/").indexOf("uploads/") +
-            "uploads/".length
-        );
-    } else if (dadosAtualizados.hasOwnProperty("path")) {
-      // Path foi enviado no corpo (pode ser uma URL, ou string vazia/null para remover)
-      if (
-        (dadosAtualizados.path === "" || dadosAtualizados.path === null) &&
-        oldFilePath &&
-        !(
-          oldFilePath.startsWith("http://") ||
-          oldFilePath.startsWith("https://")
-        )
-      ) {
-        removeFile(oldFilePath); // Remove arquivo antigo se o novo path é para limpar
-        dadosAtualizados.path = null;
-      }
-      // Se dadosAtualizados.path é uma URL, ela simplesmente substitui oldFilePath.
-      // Se dadosAtualizados.path não foi enviado, o path existente não é alterado.
-    }
-
-    await itemExistente.update(dadosAtualizados);
-    const itemAtualizado = await db.Harmonia.findByPk(id, {
+    const playlists = await db.Playlist.findAll({
       include: [
-        {
-          model: db.LodgeMember,
-          as: "cadastradoPor",
-          attributes: ["id", "NomeCompleto"],
-          required: false,
-        },
+        { model: db.Musica, as: "musicas", attributes: ["id", "titulo"] },
       ],
+      order: [["nome", "ASC"]],
     });
-    res.status(200).json(itemAtualizado);
+    res.status(200).json(playlists);
   } catch (error) {
-    console.error("Erro ao atualizar item de harmonia:", error);
-    // Se um arquivo foi upado mas a atualização do DB falhou, remove o arquivo novo.
-    if (req.file && req.file.path) {
-      const multerPath = path.resolve(__dirname, "../../", req.file.path);
-      if (fs.existsSync(multerPath)) fs.unlinkSync(multerPath);
-    }
-    if (error.name === "SequelizeValidationError") {
-      return res
-        .status(400)
-        .json({
-          message: "Erro de validação.",
-          errors: error.errors.map((e) => ({ msg: e.message, path: e.path })),
-        });
-    }
     res
       .status(500)
       .json({
-        message: "Erro ao atualizar item de harmonia",
+        message: "Erro ao buscar playlists.",
+        errorDetails: error.message,
+      });
+  }
+};
+export const getPlaylistById = async (req, res) => {
+  try {
+    const playlist = await db.Playlist.findByPk(req.params.id, {
+      include: [{ model: db.Musica, as: "musicas" }],
+    });
+    if (!playlist)
+      return res.status(404).json({ message: "Playlist não encontrada." });
+    res.status(200).json(playlist);
+  } catch (error) {
+    res
+      .status(500)
+      .json({
+        message: "Erro ao buscar playlist.",
+        errorDetails: error.message,
+      });
+  }
+};
+export const createPlaylist = async (req, res) => {
+  try {
+    const novaPlaylist = await db.Playlist.create(req.body);
+    res.status(201).json(novaPlaylist);
+  } catch (error) {
+    res
+      .status(400)
+      .json({
+        message: "Erro ao criar playlist.",
+        errorDetails: error.message,
+      });
+  }
+};
+export const updatePlaylist = async (req, res) => {
+  try {
+    const [updated] = await db.Playlist.update(req.body, {
+      where: { id: req.params.id },
+    });
+    if (!updated)
+      return res.status(404).json({ message: "Playlist não encontrada." });
+    const updatedItem = await db.Playlist.findByPk(req.params.id);
+    res.status(200).json(updatedItem);
+  } catch (error) {
+    res
+      .status(400)
+      .json({
+        message: "Erro ao atualizar playlist.",
+        errorDetails: error.message,
+      });
+  }
+};
+export const deletePlaylist = async (req, res) => {
+  try {
+    const playlist = await db.Playlist.findByPk(req.params.id, {
+      include: ["musicas"],
+    });
+    if (!playlist)
+      return res.status(404).json({ message: "Playlist não encontrada." });
+    for (const musica of playlist.musicas) {
+      removeAudioFile(musica.path);
+    }
+    await playlist.destroy();
+    res.status(204).send();
+  } catch (error) {
+    res
+      .status(500)
+      .json({
+        message: "Erro ao deletar playlist.",
         errorDetails: error.message,
       });
   }
 };
 
-// Deletar um item de harmonia
-export const deleteItemHarmonia = async (req, res) => {
+// --- CRUD para Musicas ---
+export const getAllMusicas = async (req, res) => {
   try {
-    const { id } = req.params;
-    if (!db.Harmonia) {
-      console.error(
-        "[deleteItemHarmonia] Modelo Harmonia não disponível em db."
-      );
-      return res
-        .status(500)
-        .json({ message: "Erro interno: Modelo Harmonia não inicializado." });
-    }
-    const item = await db.Harmonia.findByPk(id);
-
-    if (!item) {
-      return res
-        .status(404)
-        .json({ message: "Item de harmonia não encontrado" });
-    }
-
-    if (
-      item.path &&
-      !(item.path.startsWith("http://") || item.path.startsWith("https://"))
-    ) {
-      removeFile(item.path);
-    }
-    await item.destroy();
-    res.status(200).json({ message: "Item de harmonia deletado com sucesso" });
+    const musicas = await db.Musica.findAll({ order: [["titulo", "ASC"]] });
+    res.status(200).json(musicas);
   } catch (error) {
-    console.error("Erro ao deletar item de harmonia:", error);
     res
       .status(500)
       .json({
-        message: "Erro ao deletar item de harmonia",
+        message: "Erro ao buscar músicas.",
+        errorDetails: error.message,
+      });
+  }
+};
+export const getMusicaById = async (req, res) => {
+  try {
+    const musica = await db.Musica.findByPk(req.params.id);
+    if (!musica)
+      return res.status(404).json({ message: "Música não encontrada." });
+    res.status(200).json(musica);
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Erro ao buscar música.", errorDetails: error.message });
+  }
+};
+export const createMusica = async (req, res) => {
+  if (!req.file) {
+    return res
+      .status(400)
+      .json({ message: "Nenhum arquivo de áudio enviado." });
+  }
+  const { titulo, autor, playlistId } = req.body;
+  try {
+    const projectRoot = process.cwd();
+    const absoluteFilePath = req.file.path;
+    const relativePath = path.relative(projectRoot, absoluteFilePath);
+    const urlPath = `/${relativePath.replace(/\\/g, "/")}`;
+
+    const novaMusica = await db.Musica.create({
+      titulo: titulo || req.file.originalname,
+      autor,
+      path: urlPath,
+      playlistId: playlistId || null,
+    });
+    res.status(201).json(novaMusica);
+  } catch (error) {
+    removeAudioFile(req.file.path);
+    res
+      .status(400)
+      .json({
+        message: "Erro ao adicionar música.",
+        errorDetails: error.message,
+      });
+  }
+};
+export const updateMusica = async (req, res) => {
+  try {
+    const [updated] = await db.Musica.update(req.body, {
+      where: { id: req.params.id },
+    });
+    if (!updated)
+      return res.status(404).json({ message: "Música não encontrada." });
+    const updatedItem = await db.Musica.findByPk(req.params.id);
+    res.status(200).json(updatedItem);
+  } catch (error) {
+    res
+      .status(400)
+      .json({
+        message: "Erro ao atualizar música.",
+        errorDetails: error.message,
+      });
+  }
+};
+export const deleteMusica = async (req, res) => {
+  try {
+    const musica = await db.Musica.findByPk(req.params.id);
+    if (!musica)
+      return res.status(404).json({ message: "Música não encontrada." });
+    removeAudioFile(musica.path);
+    await musica.destroy();
+    res.status(204).send();
+  } catch (error) {
+    res
+      .status(500)
+      .json({
+        message: "Erro ao deletar música.",
+        errorDetails: error.message,
+      });
+  }
+};
+
+// --- Gerenciamento de Relacionamentos ---
+export const assignPlaylistsToTipoSessao = async (req, res) => {
+  const { tipoSessaoId } = req.params;
+  const { playlists } = req.body;
+  try {
+    const tipoSessao = await db.TipoSessao.findByPk(tipoSessaoId);
+    if (!tipoSessao)
+      return res
+        .status(404)
+        .json({ message: "Tipo de sessão não encontrado." });
+    await db.TipoSessaoPlaylist.destroy({ where: { tipoSessaoId } });
+    if (playlists && playlists.length > 0) {
+      const associacoes = playlists.map((p) => ({
+        tipoSessaoId: parseInt(tipoSessao.id, 10),
+        playlistId: p.playlistId,
+        ordem: p.ordem,
+      }));
+      await db.TipoSessaoPlaylist.bulkCreate(associacoes);
+    }
+    res
+      .status(200)
+      .json({ message: "Sequência de playlists definida com sucesso!" });
+  } catch (error) {
+    res
+      .status(500)
+      .json({
+        message: "Erro ao definir sequência.",
         errorDetails: error.message,
       });
   }

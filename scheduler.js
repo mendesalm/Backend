@@ -1,27 +1,46 @@
 // scheduler.js
-import cron from 'node-cron';
-import {
-  enviarAgendaSemanal,
-  enviarAniversariantesSemanal,
-  alertarSobreLivrosAtrasados,
-} from './services/notification.service.js';
+import cron from "node-cron";
+import * as notificationService from "./services/notification.service.js";
 
 export const startScheduler = () => {
-  console.log('Agendador de tarefas iniciado.');
+  console.log("Agendador de tarefas de e-mail iniciado.");
 
-  // Agenda para enviar emails semanais toda segunda-feira às 8:00 da manhã
-  // Formato cron: 'minuto hora dia-do-mês mês dia-da-semana'
-  cron.schedule('0 8 * * 1', () => {
-    console.log('Executando tarefas semanais...');
-    enviarAgendaSemanal();
-    enviarAniversariantesSemanal();
-  });
+  // Todos os dias às 8:00 da manhã
+  cron.schedule(
+    "0 8 * * *",
+    () => {
+      console.log("[Scheduler] Executando tarefas diárias de aniversário...");
+      notificationService.notificarAniversariantesDoDia();
+      notificationService.notificarAniversariosMaconicos();
+    },
+    {
+      timezone: "America/Sao_Paulo",
+    }
+  );
 
-  // Agenda para verificar livros atrasados todos os dias às 9:00 da manhã
-  cron.schedule('0 9 * * *', () => {
-    console.log('Executando tarefa diária de verificação de livros atrasados...');
-    alertarSobreLivrosAtrasados();
-  });
+  // Toda segunda-feira às 9:00 da manhã
+  cron.schedule(
+    "0 9 * * 1",
+    () => {
+      console.log("[Scheduler] Executando verificação semanal de ausências...");
+      notificationService.verificarAusenciasConsecutivas();
+    },
+    {
+      timezone: "America/Sao_Paulo",
+    }
+  );
 
-  // Você pode adicionar outras tarefas agendadas aqui.
+  // Toda quarta-feira às 18:00
+  cron.schedule(
+    "0 18 * * 3",
+    () => {
+      console.log(
+        "[Scheduler] Executando convocação para a sessão de sexta-feira..."
+      );
+      notificationService.enviarConvocacaoSessaoColetiva();
+    },
+    {
+      timezone: "America/Sao_Paulo",
+    }
+  );
 };

@@ -1,166 +1,254 @@
 // services/notification.service.js
-import db from '../models/index.js';
-import sendEmail from '../utils/emailSender.js';
-import { Op } from 'sequelize';
+import db from "../models/index.js";
+import { Op, fn, col } from "sequelize";
+import sendEmail from "../utils/emailSender.js";
 
-const { LodgeMember, Evento, FamilyMember, Emprestimo, Biblioteca, CargoExercido } = db;
+/**
+ * Substitui placeholders em um template string.
+ * @param {string} template - O template com placeholders como {{chave}}.
+ * @param {object} data - O objeto com os dados para substituição.
+ * @returns {string} - O template com os valores preenchidos.
+ */
+function hydrateTemplate(template, data) {
+  if (!template) return "";
+  return template.replace(/\{\{\s*([\w\.]+)\s*\}\}/g, (match, key) => {
+    const keys = key.split(".");
+    let value = data;
+    for (const k of keys) {
+      if (value === undefined) break;
+      value = value[k];
+    }
+    return value !== undefined ? value : match;
+  });
+}
 
-// Função para notificar sobre novos cadastros pendentes
-export const notificarNovoCadastroPendente = async (novoMembro) => {
+/**
+ * Dispara uma notificação por e-mail baseada em um gatilho.
+ * @param {string} eventoGatilho - O nome do gatilho (ex: 'ANIVERSARIO_MEMBRO').
+ * @param {object} destinatario - O objeto do membro que receberá a mensagem.
+ * @param {object} contextData - Dados adicionais para o template (ex: { sessao: ... }).
+ */
+async function dispatchEmail(eventoGatilho, destinatario, contextData = {}) {
   try {
-    const administradores = await LodgeMember.findAll({
-      where: {
-        credencialAcesso: { [Op.in]: ['Webmaster', 'Diretoria'] },
-        statusCadastro: 'Aprovado'
-      },
-      attributes: ['Email']
+    const template = await db.MensagemTemplate.findOne({
+      where: { eventoGatilho, ativo: true },
+    });
+    if (!template) {
+      console.warn(
+        `[Notification] Template para gatilho '${eventoGatilho}' não encontrado ou inativo.`
+      );
+      return;
+    }
+
+    if (!destinatario.Email) {
+      console.warn(
+        `[Notification] Destinatário ${destinatario.NomeCompleto} não possui e-mail.`
+      );
+      return;
+    }
+
+    const data = { ...destinatario.toJSON(), ...contextData };
+    const assunto = hydrateTemplate(template.assunto, data);
+    const corpo = hydrateTemplate(template.corpo, data);
+
+    await sendEmail({
+      to: destinatario.Email,
+      subject: assunto,
+      html: corpo,
+      text: corpo.replace(/<[^>]*>?/gm, ""),
     });
 
-    if (administradores.length === 0) return;
-
-    const emails = administradores.map(admin => admin.Email).join(', ');
-    const subject = 'SysJPJ - Novo Cadastro Pendente de Aprovação';
-    const text = `Um novo membro, ${novoMembro.NomeCompleto}, cadastrou-se no sistema e aguarda aprovação.`;
-    const html = `<p>Olá,</p><p>Um novo membro, <strong>${novoMembro.NomeCompleto}</strong> (Email: ${novoMembro.Email}), cadastrou-se no sistema e aguarda a sua aprovação.</p><p>Por favor, acesse o painel de administração para revisar o cadastro.</p><p>Atenciosamente,<br>Sistema SysJPJ</p>`;
-
-    await sendEmail({ to: emails, subject, text, html });
+    console.log(
+      `[Notification] E-mail do gatilho '${eventoGatilho}' enviado para ${destinatario.Email}.`
+    );
   } catch (error) {
-    console.error("Erro ao enviar notificação de novo cadastro:", error);
+    console.error(
+      `[Notification] Falha ao enviar e-mail para o gatilho ${eventoGatilho}:`,
+      error
+    );
   }
-};
+}
 
-// Função para enviar a agenda semanal
-export const enviarAgendaSemanal = async () => {
+// --- Funções de Lógica de Negócio ---
+
+export async function notificarAniversariantesDoDia() {
+  const hoje = new Date();
+  const dia = hoje.getDate();
+  const mes = hoje.getMonth() + 1;
+
+  try {
+    // CORREÇÃO: A estrutura do where foi consertada para o padrão Sequelize.
+    const whereMembros = {
+      Situacao: "Ativo",
+      [Op.and]: [
+        db.sequelize.where(fn("DAY", col("DataNascimento")), dia),
+        db.sequelize.where(fn("MONTH", col("DataNascimento")), mes),
+      ],
+    };
+    const membros = await db.LodgeMember.findAll({ where: whereMembros });
+    for (const membro of membros)
+      await dispatchEmail("ANIVERSARIO_MEMBRO", membro);
+
+    const whereFamiliares = {
+      [Op.and]: [
+        db.sequelize.where(fn("DAY", col("dataNascimento")), dia),
+        db.sequelize.where(fn("MONTH", col("dataNascimento")), mes),
+      ],
+    };
+    const familiares = await db.FamilyMember.findAll({
+      where: whereFamiliares,
+      include: [
+        {
+          model: db.LodgeMember,
+          as: "membro",
+          where: { Situacao: "Ativo" },
+          required: true,
+        },
+      ],
+    });
+    for (const familiar of familiares)
+      await dispatchEmail("ANIVERSARIO_FAMILIAR", familiar.membro, {
+        familiar,
+      });
+  } catch (error) {
+    console.error("[Notify] Erro ao buscar aniversariantes:", error);
+  }
+}
+
+export async function notificarAniversariosMaconicos() {
+  const hoje = new Date();
+  const dia = hoje.getDate();
+  const mes = hoje.getMonth() + 1;
+  const anoAtual = hoje.getFullYear();
+
+  try {
+    // CORREÇÃO: A estrutura do where foi consertada.
+    const whereClause = (dateField) => ({
+      [Op.and]: [
+        db.sequelize.where(fn("DAY", col(dateField)), dia),
+        db.sequelize.where(fn("MONTH", col(dateField)), mes),
+        db.sequelize.where(fn("YEAR", col(dateField)), { [Op.ne]: anoAtual }),
+      ],
+    });
+
+    const membrosComIniciacao = await db.LodgeMember.findAll({
+      where: whereClause("DataIniciacao"),
+    });
+    for (const m of membrosComIniciacao) {
+      const anos = anoAtual - new Date(m.DataIniciacao).getFullYear();
+      if (anos > 0)
+        await dispatchEmail("ANIVERSARIO_MACONICO", m, {
+          tipoAniversario: "Iniciação",
+          anos: anos,
+        });
+    }
+
+    const membrosComElevacao = await db.LodgeMember.findAll({
+      where: whereClause("DataElevacao"),
+    });
+    for (const m of membrosComElevacao) {
+      const anos = anoAtual - new Date(m.DataElevacao).getFullYear();
+      if (anos > 0)
+        await dispatchEmail("ANIVERSARIO_MACONICO", m, {
+          tipoAniversario: "Elevação",
+          anos: anos,
+        });
+    }
+
+    const membrosComExaltacao = await db.LodgeMember.findAll({
+      where: whereClause("DataExaltacao"),
+    });
+    for (const m of membrosComExaltacao) {
+      const anos = anoAtual - new Date(m.DataExaltacao).getFullYear();
+      if (anos > 0)
+        await dispatchEmail("ANIVERSARIO_MACONICO", m, {
+          tipoAniversario: "Exaltação",
+          anos: anos,
+        });
+    }
+  } catch (error) {
+    console.error("[Notify] Erro ao buscar aniversários maçônicos:", error);
+  }
+}
+
+export async function notificarCadastroAprovado(membroId) {
+  const membro = await db.LodgeMember.findByPk(membroId);
+  if (membro) {
+    await dispatchEmail("CADASTRO_APROVADO", membro);
+  }
+}
+
+export async function verificarAusenciasConsecutivas() {
+  try {
+    const ultimasSessoes = await db.MasonicSession.findAll({
+      order: [["dataSessao", "DESC"]],
+      limit: 3,
+      attributes: ["id"],
+    });
+    if (ultimasSessoes.length < 3) return;
+
+    const idsSessoes = ultimasSessoes.map((s) => s.id);
+    const membrosAtivos = await db.LodgeMember.findAll({
+      where: { Situacao: "Ativo" },
+      attributes: ["id", "NomeCompleto", "Email"],
+    });
+
+    for (const membro of membrosAtivos) {
+      const presencas = await db.SessionAttendee.count({
+        where: { lodgeMemberId: membro.id, sessionId: { [Op.in]: idsSessoes } },
+      });
+      if (presencas === 0) {
+        await dispatchEmail("AVISO_AUSENCIA_CONSECUTIVA", membro);
+      }
+    }
+  } catch (error) {
+    console.error("[Notify] Erro ao verificar ausências:", error);
+  }
+}
+
+export async function enviarConvocacaoSessaoColetiva() {
   try {
     const hoje = new Date();
-    const proximaSemana = new Date();
-    proximaSemana.setDate(hoje.getDate() + 7);
+    const proximaSexta = new Date(hoje);
+    // Lógica para encontrar a próxima sexta-feira a partir de hoje
+    proximaSexta.setDate(hoje.getDate() + ((5 + 7 - hoje.getDay()) % 7));
+    proximaSexta.setHours(0, 0, 0, 0);
 
-    const eventos = await Evento.findAll({
-      where: { dataHoraInicio: { [Op.between]: [hoje, proximaSemana] } },
-      order: [['dataHoraInicio', 'ASC']]
+    const fimDaSexta = new Date(proximaSexta);
+    fimDaSexta.setHours(23, 59, 59, 999);
+
+    const sessaoDaSemana = await db.MasonicSession.findOne({
+      where: { dataSessao: { [Op.between]: [proximaSexta, fimDaSexta] } },
     });
 
-    if (eventos.length === 0) {
-      console.log('Nenhum evento na próxima semana. Email de agenda não enviado.');
-      return;
-    }
+    if (sessaoDaSemana) {
+      const dataFormatada = new Date(
+        sessaoDaSemana.dataSessao
+      ).toLocaleDateString("pt-BR", { dateStyle: "full" });
+      const membrosAtivos = await db.LodgeMember.findAll({
+        where: { Situacao: "Ativo" },
+      });
 
-    const membros = await LodgeMember.findAll({ where: { statusCadastro: 'Aprovado' }, attributes: ['Email'] });
-    if (membros.length === 0) return;
-
-    const emails = membros.map(m => m.Email).join(', ');
-    const subject = `SysJPJ - Agenda da Semana (${hoje.toLocaleDateString('pt-BR')})`;
-    let html = '<h1>Agenda da Semana</h1><p>Confira os próximos eventos da Loja:</p><ul>';
-    eventos.forEach(evento => {
-      html += `<li><strong>${evento.titulo}</strong> - ${new Date(evento.dataHoraInicio).toLocaleString('pt-BR', {timeZone: 'America/Sao_Paulo'})} no local: ${evento.local}</li>`;
-    });
-    html += '</ul>';
-
-    await sendEmail({ to: emails, subject, text: "Agenda da semana", html });
-  } catch (error) {
-    console.error("Erro ao enviar agenda semanal:", error);
-  }
-};
-
-// --- FUNÇÃO IMPLEMENTADA ---
-// Função para enviar os aniversariantes da semana
-export const enviarAniversariantesSemanal = async () => {
-    try {
-        const hoje = new Date();
-        const proximaSemana = new Date();
-        proximaSemana.setDate(hoje.getDate() + 7);
-
-        const membrosAtivos = await LodgeMember.findAll({ where: { Situacao: 'Ativo' }, attributes: ['NomeCompleto', 'DataNascimento', 'Email'] });
-        const familiares = await FamilyMember.findAll({ include: [{ model: LodgeMember, as: 'membro', attributes: ['NomeCompleto'], required: true }] });
-
-        const todosAniversariantes = [
-            ...membrosAtivos.map(m => ({ nome: m.NomeCompleto, data: m.DataNascimento, tipo: 'Membro' })),
-            ...familiares.map(f => ({ nome: f.nomeCompleto, data: f.dataNascimento, tipo: `Familiar (${f.parentesco})` }))
-        ];
-
-        const aniversariantesDaSemana = todosAniversariantes.filter(pessoa => {
-            if (!pessoa.data) return false;
-            const aniversario = new Date(pessoa.data);
-            aniversario.setFullYear(hoje.getFullYear());
-            if (aniversario < hoje) {
-                aniversario.setFullYear(hoje.getFullYear() + 1);
-            }
-            return aniversario >= hoje && aniversario <= proximaSemana;
-        }).sort((a, b) => {
-            const dataA = new Date(a.data); dataA.setFullYear(2000);
-            const dataB = new Date(b.data); dataB.setFullYear(2000);
-            return dataA - dataB;
+      for (const membro of membrosAtivos) {
+        const sessaoContext = {
+          data: dataFormatada,
+          tipoSessao: sessaoDaSemana.tipoSessao,
+          subtipoSessao: sessaoDaSemana.subtipoSessao,
+        };
+        // CORREÇÃO: A estrutura do objeto de contexto está correta.
+        await dispatchEmail("CONVOCACAO_SESSAO_COLETIVA", membro, {
+          sessao: sessaoContext,
         });
-
-        if (aniversariantesDaSemana.length === 0) {
-            console.log('Nenhum aniversário na próxima semana. Email de aniversariantes não enviado.');
-            return;
-        }
-
-        const todosEmails = membrosAtivos.map(m => m.Email).join(',');
-        if (!todosEmails) return;
-
-        const subject = 'SysJPJ - Aniversariantes da Semana';
-        let html = '<h1>Aniversariantes da Semana</h1><p>A Loja parabeniza os seguintes aniversariantes da semana:</p><ul>';
-        aniversariantesDaSemana.forEach(aniv => {
-            const dataFormatada = new Date(aniv.data).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'UTC' });
-            html += `<li><strong>${aniv.nome}</strong> (${aniv.tipo}) - ${dataFormatada}</li>`;
-        });
-        html += '</ul><p>Felicidades a todos!</p>';
-
-        await sendEmail({ to: todosEmails, subject, text: "Aniversariantes da semana", html });
-
-    } catch (error) {
-        console.error("Erro ao enviar email de aniversariantes:", error);
+      }
+      console.log(
+        `[Notify] Convocação coletiva enviada para ${membrosAtivos.length} membros.`
+      );
+    } else {
+      console.log(
+        "[Notify] Nenhuma sessão encontrada para a próxima sexta-feira. Nenhuma convocação enviada."
+      );
     }
-};
-
-// Função para alertar o Bibliotecário sobre livros atrasados
-export const alertarSobreLivrosAtrasados = async () => {
-  try {
-    const bibliotecarios = await LodgeMember.findAll({
-        include: [{
-            model: CargoExercido,
-            as: 'cargos',
-            where: { nomeCargo: 'Bibliotecário', dataFim: null },
-            required: true
-        }],
-        attributes: ['Email']
-    });
-
-    if (bibliotecarios.length === 0) {
-      console.log('Nenhum bibliotecário encontrado para enviar alerta.');
-      return;
-    }
-
-    const emprestimosAtrasados = await Emprestimo.findAll({
-        where: {
-            dataDevolucaoReal: null,
-            dataDevolucaoPrevista: { [Op.lt]: new Date() }
-        },
-        include: [
-            { model: Biblioteca, as: 'livro', attributes: ['titulo'] },
-            { model: LodgeMember, as: 'membro', attributes: ['NomeCompleto'] }
-        ]
-    });
-
-    if (emprestimosAtrasados.length === 0) {
-        console.log('Nenhum livro atrasado. Alerta não enviado.');
-        return;
-    }
-
-    const emails = bibliotecarios.map(b => b.Email).join(', ');
-    const subject = 'SysJPJ - Alerta de Livros com Devolução Atrasada';
-    let html = '<h1>Alerta de Livros Atrasados</h1><p>Os seguintes livros estão com a devolução em atraso:</p><ul>';
-    emprestimosAtrasados.forEach(e => {
-        html += `<li><strong>Livro:</strong> ${e.livro.titulo}<br/><strong>Membro:</strong> ${e.membro.NomeCompleto}<br/><strong>Devolução Prevista:</strong> ${new Date(e.dataDevolucaoPrevista).toLocaleDateString('pt-BR')}</li><br/>`;
-    });
-    html += '</ul>';
-
-    await sendEmail({ to: emails, subject, text: "Alerta de livros atrasados", html });
-
   } catch (error) {
-    console.error("Erro ao enviar alerta de livros atrasados:", error);
+    console.error("[Notify] Erro ao enviar convocação coletiva:", error);
   }
-};
+}

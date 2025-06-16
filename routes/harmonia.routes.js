@@ -1,62 +1,101 @@
-// backend/routes/harmonia.routes.js
-import express from 'express';
-import authMiddleware from '../middlewares/auth.middleware.js';
-import { authorizeByFeature } from '../middlewares/authorizeByFeature.middleware.js';
-import * as harmoniaController from '../controllers/harmonia.controller.js';
-import { uploadAudio } from '../middlewares/upload.middleware.js';
-import {
-  itemHarmoniaRules,
-  itemIdParamRule,
-  harmoniaQueryValidator,
-  handleValidationErrors // Importar para usar explicitamente
-} from '../validators/harmonia.validator.js';
+// routes/harmonia.routes.js
+import express from "express";
+import authMiddleware from "../middlewares/auth.middleware.js";
+import { authorizeByFeature } from "../middlewares/authorizeByFeature.middleware.js";
+import { uploadAudio } from "../middlewares/upload.middleware.js";
+import * as harmoniaController from "../controllers/harmonia.controller.js";
 
 const router = express.Router();
-
 router.use(authMiddleware);
 
+// Permissões
+const canView = authorizeByFeature("visualizarHarmonia");
+const canManageMusicas = authorizeByFeature("gerenciarMusicas");
+const canManagePlaylists = authorizeByFeature("gerenciarPlaylists");
+const canManageEstrutura = authorizeByFeature("gerenciarEstruturaHarmonia");
+
+// --- Rota Principal do Player ---
+router.get(
+  "/sequencia/:tipoSessaoId",
+  canView,
+  harmoniaController.getSequenciaByTipoSessao
+);
+
+// --- Rotas de Gerenciamento de Tipos de Sessão ---
+router.get(
+  "/tipos-sessao",
+  canManageEstrutura,
+  harmoniaController.getAllTiposSessao
+);
+router.get(
+  "/tipos-sessao/:id",
+  canManageEstrutura,
+  harmoniaController.getTipoSessaoById
+);
 router.post(
-  '/',
-  authorizeByFeature('adicionarItemHarmonia'),
-  uploadAudio.single('audioFile'), // 'audioFile' é o nome do campo no formulário multipart
-  itemHarmoniaRules(false),
-  handleValidationErrors, // Aplicar após as regras do corpo e upload
-  harmoniaController.createItemHarmonia
+  "/tipos-sessao",
+  canManageEstrutura,
+  harmoniaController.createTipoSessao
 );
-
-router.get(
-  '/',
-  authorizeByFeature('listarItensHarmonia'),
-  harmoniaQueryValidator, // Validar/sanitizar os query params
-  handleValidationErrors, // Aplicar após validação da query
-  harmoniaController.getAllItensHarmonia
-);
-
-router.get(
-  '/:id',
-  authorizeByFeature('visualizarDetalhesItemHarmonia'),
-  itemIdParamRule, // Valida o parâmetro ID
-  handleValidationErrors, // Aplicar após validação do parâmetro
-  harmoniaController.getItemHarmoniaById
-);
-
 router.put(
-  '/:id',
-  authorizeByFeature('editarItemHarmonia'),
-  itemIdParamRule, // Validar o ID primeiro
-  handleValidationErrors, // Aplicar após validação do parâmetro
-  uploadAudio.single('audioFile'), // Depois do ID e sua validação, antes das regras do corpo
-  itemHarmoniaRules(true),
-  handleValidationErrors, // Aplicar após regras do corpo e upload
-  harmoniaController.updateItemHarmonia
+  "/tipos-sessao/:id",
+  canManageEstrutura,
+  harmoniaController.updateTipoSessao
+);
+router.delete(
+  "/tipos-sessao/:id",
+  canManageEstrutura,
+  harmoniaController.deleteTipoSessao
 );
 
+// --- Rotas de Gerenciamento de Playlists ---
+router.get(
+  "/playlists",
+  canManagePlaylists,
+  harmoniaController.getAllPlaylists
+);
+router.get(
+  "/playlists/:id",
+  canManagePlaylists,
+  harmoniaController.getPlaylistById
+);
+router.post(
+  "/playlists",
+  canManagePlaylists,
+  harmoniaController.createPlaylist
+);
+router.put(
+  "/playlists/:id",
+  canManagePlaylists,
+  harmoniaController.updatePlaylist
+);
 router.delete(
-  '/:id',
-  authorizeByFeature('deletarItemHarmonia'),
-  itemIdParamRule, // Valida o parâmetro ID
-  handleValidationErrors, // Aplicar após validação do parâmetro
-  harmoniaController.deleteItemHarmonia
+  "/playlists/:id",
+  canManagePlaylists,
+  harmoniaController.deletePlaylist
+);
+
+// --- Rotas de Gerenciamento de Músicas ---
+router.get("/musicas", canManageMusicas, harmoniaController.getAllMusicas);
+router.get("/musicas/:id", canManageMusicas, harmoniaController.getMusicaById);
+router.post(
+  "/musicas",
+  canManageMusicas,
+  uploadAudio.single("audioFile"),
+  harmoniaController.createMusica
+);
+router.put("/musicas/:id", canManageMusicas, harmoniaController.updateMusica);
+router.delete(
+  "/musicas/:id",
+  canManageMusicas,
+  harmoniaController.deleteMusica
+);
+
+// --- Rotas para Gerenciar Associações ---
+router.post(
+  "/tipos-sessao/:tipoSessaoId/playlists",
+  canManageEstrutura,
+  harmoniaController.assignPlaylistsToTipoSessao
 );
 
 export default router;
