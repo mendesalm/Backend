@@ -1,27 +1,17 @@
-// controllers/harmonia.controller.js
 import db from "../models/index.js";
 import fs from "fs";
 import path from "path";
 
-/**
- * Função auxiliar para remover o arquivo de música do disco de forma segura.
- * @param {string} urlPath - O caminho da URL como salvo no DB (ex: '/uploads/harmonia/musica.mp3').
- */
-const removeAudioFile = (urlPath) => {
-  if (!urlPath) return;
-  try {
-    // Remove a barra inicial para que path.join funcione corretamente
-    const relativePath = urlPath.startsWith("/")
-      ? urlPath.substring(1)
-      : urlPath;
-    const fullPath = path.resolve(process.cwd(), relativePath);
-
-    if (fs.existsSync(fullPath)) {
+const removeAudioFile = (relativePath) => {
+  if (!relativePath) return;
+  const fullPath = path.resolve(process.cwd(), "uploads", relativePath);
+  if (fs.existsSync(fullPath)) {
+    try {
       fs.unlinkSync(fullPath);
       console.log(`Arquivo de áudio removido: ${fullPath}`);
+    } catch (err) {
+      console.error(`Erro ao remover arquivo de áudio:`, err);
     }
-  } catch (err) {
-    console.error(`Erro ao tentar remover arquivo de áudio:`, err);
   }
 };
 
@@ -90,9 +80,38 @@ export const getSequenciaByTipoSessao = async (req, res) => {
 };
 
 // --- CRUD para Tipos de Sessão ---
+
+/**
+ * GET /api/harmonia/tipos-sessao
+ * Lista todos os Tipos de Sessão.
+ */
 export const getAllTiposSessao = async (req, res) => {
   try {
-    const tipos = await db.TipoSessao.findAll({ order: [["nome", "ASC"]] });
+    // --- INÍCIO DA CORREÇÃO ---
+    const tipos = await db.TipoSessao.findAll({
+      // Inclui o modelo Playlist através da associação 'playlists'
+      include: [
+        {
+          model: db.Playlist,
+          as: "playlists",
+          // Pega o campo 'ordem' da tabela de junção
+          through: {
+            attributes: ["ordem"],
+          },
+        },
+      ],
+      order: [
+        ["nome", "ASC"], // Ordena os tipos de sessão por nome
+        // Ordena as playlists aninhadas pela ordem definida na junção
+        [
+          { model: db.Playlist, as: "playlists" },
+          db.TipoSessaoPlaylist,
+          "ordem",
+          "ASC",
+        ],
+      ],
+    });
+    // --- FIM DA CORREÇÃO ---
     res.status(200).json(tipos);
   } catch (error) {
     res
@@ -103,6 +122,7 @@ export const getAllTiposSessao = async (req, res) => {
       });
   }
 };
+
 export const getTipoSessaoById = async (req, res) => {
   try {
     const tipoSessao = await db.TipoSessao.findByPk(req.params.id, {
@@ -128,6 +148,7 @@ export const getTipoSessaoById = async (req, res) => {
       });
   }
 };
+
 export const createTipoSessao = async (req, res) => {
   try {
     const novoTipo = await db.TipoSessao.create(req.body);
@@ -141,6 +162,7 @@ export const createTipoSessao = async (req, res) => {
       });
   }
 };
+
 export const updateTipoSessao = async (req, res) => {
   try {
     const [updated] = await db.TipoSessao.update(req.body, {
@@ -161,6 +183,7 @@ export const updateTipoSessao = async (req, res) => {
       });
   }
 };
+
 export const deleteTipoSessao = async (req, res) => {
   try {
     const deleted = await db.TipoSessao.destroy({
@@ -200,6 +223,7 @@ export const getAllPlaylists = async (req, res) => {
       });
   }
 };
+
 export const getPlaylistById = async (req, res) => {
   try {
     const playlist = await db.Playlist.findByPk(req.params.id, {
@@ -217,6 +241,7 @@ export const getPlaylistById = async (req, res) => {
       });
   }
 };
+
 export const createPlaylist = async (req, res) => {
   try {
     const novaPlaylist = await db.Playlist.create(req.body);
@@ -230,6 +255,7 @@ export const createPlaylist = async (req, res) => {
       });
   }
 };
+
 export const updatePlaylist = async (req, res) => {
   try {
     const [updated] = await db.Playlist.update(req.body, {
@@ -248,6 +274,7 @@ export const updatePlaylist = async (req, res) => {
       });
   }
 };
+
 export const deletePlaylist = async (req, res) => {
   try {
     const playlist = await db.Playlist.findByPk(req.params.id, {
@@ -284,6 +311,7 @@ export const getAllMusicas = async (req, res) => {
       });
   }
 };
+
 export const getMusicaById = async (req, res) => {
   try {
     const musica = await db.Musica.findByPk(req.params.id);
@@ -296,6 +324,7 @@ export const getMusicaById = async (req, res) => {
       .json({ message: "Erro ao buscar música.", errorDetails: error.message });
   }
 };
+
 export const createMusica = async (req, res) => {
   if (!req.file) {
     return res
@@ -304,15 +333,14 @@ export const createMusica = async (req, res) => {
   }
   const { titulo, autor, playlistId } = req.body;
   try {
-    const projectRoot = process.cwd();
-    const absoluteFilePath = req.file.path;
-    const relativePath = path.relative(projectRoot, absoluteFilePath);
-    const urlPath = `/${relativePath.replace(/\\/g, "/")}`;
-
+    const uploadsDir = path.resolve(process.cwd(), "uploads");
+    const relativePath = path
+      .relative(uploadsDir, req.file.path)
+      .replace(/\\/g, "/");
     const novaMusica = await db.Musica.create({
       titulo: titulo || req.file.originalname,
       autor,
-      path: urlPath,
+      path: relativePath,
       playlistId: playlistId || null,
     });
     res.status(201).json(novaMusica);
@@ -326,6 +354,7 @@ export const createMusica = async (req, res) => {
       });
   }
 };
+
 export const updateMusica = async (req, res) => {
   try {
     const [updated] = await db.Musica.update(req.body, {
@@ -344,6 +373,7 @@ export const updateMusica = async (req, res) => {
       });
   }
 };
+
 export const deleteMusica = async (req, res) => {
   try {
     const musica = await db.Musica.findByPk(req.params.id);
