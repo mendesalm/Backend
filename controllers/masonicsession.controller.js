@@ -1,8 +1,8 @@
-// backend/controllers/masonicSession.controller.js
 import db from "../models/index.js";
-// CORREÇÃO: Removida a desestruturação dos modelos do topo do ficheiro.
+import { createBalaustreFromTemplate } from "../services/googleDocs.service.js";
 
-// Listar todas as sessões
+// ... as funções getAllSessions e getSessionById permanecem as mesmas ...
+
 export const getAllSessions = async (req, res) => {
   try {
     const {
@@ -23,9 +23,16 @@ export const getAllSessions = async (req, res) => {
       where: whereClause,
       include: [
         {
-          model: db.Ata,
-          as: "ata",
-          attributes: ["id", "numero", "ano"],
+          model: db.Balaustre,
+          as: "Balaustre",
+          attributes: [
+            "id",
+            "googleDocId",
+            "caminhoPdfLocal",
+            "numero",
+            "ano",
+            "path",
+          ],
           required: false,
         },
       ],
@@ -69,12 +76,11 @@ export const getAllSessions = async (req, res) => {
   }
 };
 
-// Obter uma sessão por ID
 export const getSessionById = async (req, res) => {
   try {
     const session = await db.MasonicSession.findByPk(req.params.id, {
       include: [
-        { model: db.Ata, as: "ata", required: false },
+        { model: db.Balaustre, as: "Balaustre", required: false },
         {
           model: db.LodgeMember,
           as: "presentes",
@@ -103,132 +109,115 @@ export const getSessionById = async (req, res) => {
   }
 };
 
-// Criar uma nova sessão
+// Criar uma nova sessão (Lógica de dados para o template ATUALIZADA)
 export const createSession = async (req, res) => {
-  const {
-    dataSessao,
-    tipoSessao,
-    subtipoSessao,
-    troncoDeBeneficencia,
-    presentesLodgeMemberIds,
-    visitantes,
-    numeroAta,
-    anoAta,
-  } = req.body;
-
+  const { dataSessao, tipoSessao, subtipoSessao, ...restOfBody } = req.body;
   const transaction = await db.sequelize.transaction();
 
   try {
     const novaSessao = await db.MasonicSession.create(
+      { dataSessao, tipoSessao, subtipoSessao, ...restOfBody },
+      { transaction }
+    );
+
+    const sessionDate = new Date(dataSessao);
+
+    // --- CORREÇÃO APLICADA ---
+    const dadosParaBalaustre = {
+      NumeroBalaustre: novaSessao.id, // Envia apenas o número
+      NumeroIrmaosQuadro: 0, // Valor inicial, será editado depois
+      NumeroVisitantes: 0, // Valor inicial, será editado depois
+      ClasseSessao: `${tipoSessao} de ${subtipoSessao}`, // O service cuidará de criar as versões _Titulo e _Corpo
+      DiaSessao: sessionDate.toLocaleDateString("pt-BR", {
+        dateStyle: "long",
+        timeZone: "UTC",
+      }),
+      DataSessaoAnterior: "(A preencher)",
+      HoraInicioSessao: "19h30",
+      HoraEncerramento: "(A preencher)",
+      EmendasBalaustreAnterior: "Sem",
+      DataAssinatura: `Anápolis-Goiás, ${sessionDate.toLocaleDateString(
+        "pt-BR",
+        { dateStyle: "long", timeZone: "UTC" }
+      )}`,
+      Veneravel: "(A preencher)",
+      PrimeiroVigilante: "(A preencher)",
+      SegundoVigilante: "(A preencher)",
+      Orador: "(A preencher)",
+      Secretario: "(A preencher)",
+      Tesoureiro: "(A preencher)",
+      Chanceler: "(A preencher)",
+      ExpedienteRecebido: "(A preencher)",
+      ExpedienteExpedido: "(A preencher)",
+      SacoProposta: "(A preencher)",
+      OrdemDia: "(A preencher)",
+      TempoInstrucao: "(A preencher)",
+      TroncoBeneficiencia: "0",
+      Palavra: "(A preencher)",
+      Emendas: "(A preencher)",
+    };
+    // --- FIM DA CORREÇÃO ---
+
+    const { googleDocId, pdfPath } = await createBalaustreFromTemplate(
+      dadosParaBalaustre
+    );
+
+    await db.Balaustre.create(
       {
-        dataSessao,
-        tipoSessao,
-        subtipoSessao,
-        troncoDeBeneficencia,
+        numero: novaSessao.id.toString(), // Salva o número como string
+        ano: sessionDate.getFullYear(),
+        path: pdfPath,
+        MasonicSessionId: novaSessao.id,
+        googleDocId: googleDocId,
+        caminhoPdfLocal: pdfPath,
+        dadosFormulario: dadosParaBalaustre,
       },
       { transaction }
     );
 
-    if (presentesLodgeMemberIds && presentesLodgeMemberIds.length > 0) {
-      const attendees = presentesLodgeMemberIds.map((id) => ({
-        sessionId: novaSessao.id,
-        lodgeMemberId: id,
-      }));
-      await db.SessionAttendee.bulkCreate(attendees, { transaction });
-    }
-
-    if (visitantes && visitantes.length > 0) {
-      const parsedVisitantes =
-        typeof visitantes === "string" ? JSON.parse(visitantes) : visitantes;
-      const visitorsToCreate = parsedVisitantes.map((v) => ({
-        ...v,
-        masonicSessionId: novaSessao.id,
-      }));
-      await db.VisitanteSessao.bulkCreate(visitorsToCreate, { transaction });
-    }
-
-    if (req.file) {
-      await db.Ata.create(
-        {
-          numero: numeroAta,
-          ano: anoAta,
-          path: req.file.path
-            .replace(/\\/g, "/")
-            .substring(
-              req.file.path.replace(/\\/g, "/").indexOf("uploads/") +
-                "uploads/".length
-            ),
-          sessionId: novaSessao.id,
-        },
-        { transaction }
-      );
-    }
-
     await transaction.commit();
-    res.status(201).json(novaSessao);
+
+    const sessaoCompleta = await db.MasonicSession.findByPk(novaSessao.id, {
+      include: [{ model: db.Balaustre, as: "Balaustre" }],
+    });
+
+    const finalObject = {
+      ...sessaoCompleta.toJSON(),
+      presentesCount: 0,
+      visitantesCount: 0,
+    };
+
+    res.status(201).json(finalObject);
   } catch (error) {
     await transaction.rollback();
     console.error("Erro em createSession:", error);
     res
       .status(500)
-      .json({ message: "Erro ao criar sessão.", errorDetails: error.message });
+      .json({
+        message: "Erro ao criar sessão e balaústre automático.",
+        errorDetails: error.message,
+      });
   }
 };
 
-// --- FUNÇÃO ADICIONADA ---
-// Atualizar uma sessão existente
+// ... as funções updateSession e deleteSession permanecem as mesmas ...
 export const updateSession = async (req, res) => {
   const { id } = req.params;
   const { dataSessao, tipoSessao, subtipoSessao, troncoDeBeneficencia } =
     req.body;
-  const transaction = await db.sequelize.transaction();
   try {
     const session = await db.MasonicSession.findByPk(id);
     if (!session) {
-      await transaction.rollback();
       return res.status(404).json({ message: "Sessão não encontrada." });
     }
-
-    await session.update(
-      {
-        dataSessao,
-        tipoSessao,
-        subtipoSessao,
-        troncoDeBeneficencia,
-      },
-      { transaction }
-    );
-
-    // Lógica para atualizar a ata, se um novo ficheiro for enviado
-    if (req.file) {
-      // Opcional: remover a ata antiga do sistema de ficheiros
-      const oldAta = await db.Ata.findOne({ where: { sessionId: id } });
-      if (oldAta) {
-        // fs.unlink... (lógica de remoção de ficheiro)
-        await oldAta.destroy({ transaction });
-      }
-      await db.Ata.create(
-        {
-          // ...dados da nova ata
-          path: req.file.path
-            .replace(/\\/g, "/")
-            .substring(
-              req.file.path.replace(/\\/g, "/").indexOf("uploads/") +
-                "uploads/".length
-            ),
-          sessionId: id,
-        },
-        { transaction }
-      );
-    }
-
-    await transaction.commit();
-    const updatedSession = await db.MasonicSession.findByPk(id, {
-      include: ["ata"],
+    await session.update({
+      dataSessao,
+      tipoSessao,
+      subtipoSessao,
+      troncoDeBeneficencia,
     });
-    res.status(200).json(updatedSession);
+    res.status(200).json(session);
   } catch (error) {
-    await transaction.rollback();
     console.error("Erro em updateSession:", error);
     res
       .status(500)
@@ -239,8 +228,6 @@ export const updateSession = async (req, res) => {
   }
 };
 
-// --- FUNÇÃO ADICIONADA ---
-// Deletar uma sessão
 export const deleteSession = async (req, res) => {
   const { id } = req.params;
   try {
@@ -248,12 +235,8 @@ export const deleteSession = async (req, res) => {
     if (!session) {
       return res.status(404).json({ message: "Sessão não encontrada." });
     }
-
-    // A associação `onDelete: 'CASCADE'` no modelo deve cuidar da remoção
-    // de Atas, SessionAttendees e VisitantesSessao relacionados.
     await session.destroy();
-
-    res.status(204).send(); // 204 No Content é a resposta padrão para delete bem-sucedido
+    res.status(204).send();
   } catch (error) {
     console.error("Erro em deleteSession:", error);
     res

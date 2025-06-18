@@ -33,7 +33,7 @@ const modelDefinitions = [
   { key: "MasonicSession", file: "masonicsession.model.js" },
   { key: "SessionAttendee", file: "sessionattendee.model.js" },
   { key: "CargoExercido", file: "cargoexercido.model.js" },
-  { key: "Ata", file: "ata.model.js" },
+  { key: "Balaustre", file: "balaustre.model.js" },
   { key: "Publicacao", file: "publicacao.model.js" },
   { key: "Musica", file: "musica.model.js" },
   { key: "Playlist", file: "playlist.model.js" },
