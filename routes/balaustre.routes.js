@@ -1,17 +1,22 @@
 import express from "express";
-// Importa as funções nomeadas do controller
 import {
   getBalaustreDetails,
   updateBalaustre,
 } from "../controllers/balaustre.controller.js";
-// CORREÇÃO: Ajustado o caminho para 'middlewares' (plural) e a importação para default.
-import protect from "../middlewares/auth.middleware.js";
+import authMiddleware from "../middlewares/auth.middleware.js";
+import { authorizeByFeature } from "../middlewares/authorizeByFeature.middleware.js"; // <-- Importar
 
 const router = express.Router();
 
-// As rotas permanecem as mesmas
-router.get("/:id", protect, getBalaustreDetails);
-router.put("/:id", protect, updateBalaustre);
+// Aplica a autenticação para todas as rotas
+router.use(authMiddleware);
 
-// Usa 'export default' para o objeto do router
+// Protege cada rota com sua permissão específica
+router.get(
+  "/:id",
+  authorizeByFeature("visualizarBalaustre"),
+  getBalaustreDetails
+);
+router.put("/:id", authorizeByFeature("editarBalaustre"), updateBalaustre);
+
 export default router;

@@ -3,6 +3,7 @@ import { pick } from "../utils/pick.js";
 
 // Função auxiliar para gerir familiares numa transação
 const manageFamiliares = async (lodgeMemberId, familiaresData, transaction) => {
+  // ... (código existente, sem alterações)
   console.log("[UPDATE-DEBUG] Iniciando manageFamiliares...");
   if (!familiaresData || !Array.isArray(familiaresData)) {
     console.log(
@@ -10,12 +11,10 @@ const manageFamiliares = async (lodgeMemberId, familiaresData, transaction) => {
     );
     return;
   }
-
   const existingFamiliares = await db.FamilyMember.findAll({
     where: { lodgeMemberId },
     transaction,
   });
-
   const incomingIds = new Set(
     familiaresData.filter((f) => f.id).map((f) => f.id)
   );
@@ -23,16 +22,12 @@ const manageFamiliares = async (lodgeMemberId, familiaresData, transaction) => {
     "[UPDATE-DEBUG] IDs de familiares recebidos:",
     Array.from(incomingIds)
   );
-
-  // Deleta familiares que foram removidos no formulário
   for (const existing of existingFamiliares) {
     if (!incomingIds.has(existing.id)) {
       console.log(`[UPDATE-DEBUG] A deletar familiar com ID: ${existing.id}`);
       await existing.destroy({ transaction });
     }
   }
-
-  // Cria ou atualiza os familiares da lista
   for (const familiarData of familiaresData) {
     const data = { ...familiarData, lodgeMemberId };
     if (familiarData.id) {
@@ -74,10 +69,12 @@ export const getMyProfile = async (req, res) => {
       return res.status(404).json({ message: "Maçom não encontrado." });
     res.status(200).json(member);
   } catch (error) {
-    res.status(500).json({
-      message: "Erro ao buscar dados do perfil.",
-      errorDetails: error.message,
-    });
+    res
+      .status(500)
+      .json({
+        message: "Erro ao buscar dados do perfil.",
+        errorDetails: error.message,
+      });
   }
 };
 
@@ -92,7 +89,6 @@ export const updateMyProfile = async (req, res) => {
       await t.rollback();
       return res.status(404).json({ message: "Maçom não encontrado." });
     }
-
     const allowedFields = [
       "NomeCompleto",
       "CIM",
@@ -119,11 +115,8 @@ export const updateMyProfile = async (req, res) => {
     ];
     const updates = pick(req.body, allowedFields);
     await member.update(updates, { transaction: t });
-
     await manageFamiliares(req.user.id, req.body.familiares, t);
-
     await t.commit();
-
     const updatedMember = await db.LodgeMember.findByPk(req.user.id, {
       include: ["familiares"],
     });
@@ -133,17 +126,21 @@ export const updateMyProfile = async (req, res) => {
       resetPasswordExpires,
       ...memberResponse
     } = updatedMember.toJSON();
-    res.status(200).json({
-      message: "Perfil atualizado com sucesso!",
-      member: memberResponse,
-    });
+    res
+      .status(200)
+      .json({
+        message: "Perfil atualizado com sucesso!",
+        member: memberResponse,
+      });
   } catch (error) {
     await t.rollback();
     console.error("Erro ao atualizar perfil:", error);
-    res.status(500).json({
-      message: "Erro ao atualizar perfil.",
-      errorDetails: error.message,
-    });
+    res
+      .status(500)
+      .json({
+        message: "Erro ao atualizar perfil.",
+        errorDetails: error.message,
+      });
   }
 };
 
@@ -157,7 +154,6 @@ export const createLodgeMember = async (req, res) => {
       { ...memberData, statusCadastro: "Aprovado" },
       { transaction: t }
     );
-
     if (familiares && familiares.length > 0) {
       const familiaresData = familiares.map((f) => ({
         ...f,
@@ -165,7 +161,6 @@ export const createLodgeMember = async (req, res) => {
       }));
       await db.FamilyMember.bulkCreate(familiaresData, { transaction: t });
     }
-
     await t.commit();
     const { SenhaHash, ...memberResponse } = newMember.toJSON();
     res.status(201).json(memberResponse);
@@ -178,19 +173,15 @@ export const createLodgeMember = async (req, res) => {
   }
 };
 
+/**
+ * REVERTIDO: Retorna um array simples de membros, sem paginação.
+ * Mantém a funcionalidade de busca e filtro por status.
+ */
 export const getAllLodgeMembers = async (req, res) => {
   try {
-    const {
-      page = 1,
-      limit = 10,
-      sortBy = "NomeCompleto",
-      order = "ASC",
-      search,
-      statusCadastro,
-    } = req.query;
-    const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
-
+    const { search, statusCadastro } = req.query;
     const whereClause = {};
+
     if (statusCadastro) {
       whereClause.statusCadastro = statusCadastro;
     }
@@ -203,7 +194,7 @@ export const getAllLodgeMembers = async (req, res) => {
       ];
     }
 
-    const { count, rows } = await db.LodgeMember.findAndCountAll({
+    const members = await db.LodgeMember.findAll({
       where: whereClause,
       attributes: {
         exclude: [
@@ -214,19 +205,10 @@ export const getAllLodgeMembers = async (req, res) => {
           "emailVerificationExpires",
         ],
       },
-      limit: parseInt(limit, 10),
-      offset,
-      order: [[sortBy, order.toUpperCase()]],
+      order: [["NomeCompleto", "ASC"]],
     });
 
-    res.status(200).json({
-      data: rows,
-      pagination: {
-        totalItems: count,
-        totalPages: Math.ceil(count / limit),
-        currentPage: parseInt(page, 10),
-      },
-    });
+    res.status(200).json(members); // Retorna o array diretamente
   } catch (error) {
     res
       .status(500)
@@ -253,15 +235,17 @@ export const getLodgeMemberById = async (req, res) => {
       return res.status(404).json({ message: "Maçom não encontrado." });
     res.status(200).json(member);
   } catch (error) {
-    res.status(500).json({
-      message: "Erro ao buscar maçom por ID.",
-      errorDetails: error.message,
-    });
+    res
+      .status(500)
+      .json({
+        message: "Erro ao buscar maçom por ID.",
+        errorDetails: error.message,
+      });
   }
 };
 
-// --- FUNÇÃO ATUALIZADA COM LOGS DE DEPURAÇÃO ---
 export const updateLodgeMemberById = async (req, res) => {
+  // ... (código existente, sem alterações)
   console.log(
     `\n[UPDATE-DEBUG] ----- INICIANDO ATUALIZAÇÃO PARA O MEMBRO ID: ${req.params.id} -----`
   );
@@ -272,7 +256,6 @@ export const updateLodgeMemberById = async (req, res) => {
       "[UPDATE-DEBUG] Corpo da requisição recebido:",
       JSON.stringify(req.body, null, 2)
     );
-
     const member = await db.LodgeMember.findByPk(memberId, { transaction: t });
     if (!member) {
       await t.rollback();
@@ -282,7 +265,6 @@ export const updateLodgeMemberById = async (req, res) => {
       return res.status(404).json({ message: "Maçom não encontrado." });
     }
     console.log("[UPDATE-DEBUG] Membro encontrado no banco de dados.");
-
     const allowedAdminFields = [
       "NomeCompleto",
       "Email",
@@ -317,37 +299,34 @@ export const updateLodgeMemberById = async (req, res) => {
       "statusCadastro",
     ];
     const memberUpdates = pick(req.body, allowedAdminFields);
-
     console.log(
       "[UPDATE-DEBUG] Campos do membro a serem atualizados:",
       memberUpdates
     );
     await member.update(memberUpdates, { transaction: t });
     console.log("[UPDATE-DEBUG] Dados do membro principal atualizados.");
-
     await manageFamiliares(memberId, req.body.familiares, t);
-
     console.log("[UPDATE-DEBUG] A executar commit da transação...");
     await t.commit();
     console.log(
       "[UPDATE-DEBUG] Transação confirmada com sucesso (commit executado)."
     );
-
     const updatedMember = await db.LodgeMember.findByPk(memberId, {
       include: ["familiares"],
     });
     const { SenhaHash, ...memberResponse } = updatedMember.toJSON();
-    res.status(200).json({
-      message: "Maçom atualizado com sucesso!",
-      member: memberResponse,
-    });
+    res
+      .status(200)
+      .json({
+        message: "Maçom atualizado com sucesso!",
+        member: memberResponse,
+      });
   } catch (error) {
     await t.rollback();
     console.error(
       "\n[UPDATE-DEBUG] OCORREU UM ERRO! Rollback executado. Detalhes do erro:",
       error
     );
-
     if (
       error.name === "SequelizeValidationError" ||
       error.name === "SequelizeUniqueConstraintError"
@@ -360,11 +339,12 @@ export const updateLodgeMemberById = async (req, res) => {
         .status(400)
         .json({ message: "Erro de validação nos dados fornecidos.", errors });
     }
-
-    res.status(500).json({
-      message: "Erro interno no servidor ao atualizar maçom.",
-      errorDetails: error.message,
-    });
+    res
+      .status(500)
+      .json({
+        message: "Erro interno no servidor ao atualizar maçom.",
+        errorDetails: error.message,
+      });
   }
 };
 

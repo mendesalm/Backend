@@ -1,26 +1,41 @@
 import db from "../models/index.js";
 import { createBalaustreFromTemplate } from "../services/googleDocs.service.js";
 
-// ... as funções getAllSessions e getSessionById permanecem as mesmas ...
-
+// REATORADO: A função agora usa subqueries para evitar o problema N+1.
 export const getAllSessions = async (req, res) => {
   try {
-    const {
-      page = 1,
-      limit = 10,
-      sortBy = "dataSessao",
-      order = "DESC",
-      tipoSessao,
-    } = req.query;
-    const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
+    const { sortBy = "dataSessao", order = "DESC", tipoSessao } = req.query;
 
     const whereClause = {};
     if (tipoSessao) {
       whereClause.tipoSessao = tipoSessao;
     }
 
-    const { count, rows } = await db.MasonicSession.findAndCountAll({
+    const sessions = await db.MasonicSession.findAll({
       where: whereClause,
+      attributes: {
+        // Inclui os atributos do modelo e adiciona as contagens via subquery
+        include: [
+          [
+            db.sequelize.literal(`(
+              SELECT COUNT(*)
+              FROM SessionAttendees AS presentes
+              WHERE
+                presentes.sessionId = MasonicSession.id
+            )`),
+            "presentesCount",
+          ],
+          [
+            db.sequelize.literal(`(
+              SELECT COUNT(*)
+              FROM VisitantesSessao AS visitantes
+              WHERE
+                visitantes.masonicSessionId = MasonicSession.id
+            )`),
+            "visitantesCount",
+          ],
+        ],
+      },
       include: [
         {
           model: db.Balaustre,
@@ -36,43 +51,16 @@ export const getAllSessions = async (req, res) => {
           required: false,
         },
       ],
-      limit: parseInt(limit, 10),
-      offset,
       order: [[sortBy, order.toUpperCase()]],
     });
 
-    const sessionsWithCounts = await Promise.all(
-      rows.map(async (session) => {
-        const presentesCount = await db.SessionAttendee.count({
-          where: { sessionId: session.id },
-        });
-        const visitantesCount = await db.VisitanteSessao.count({
-          where: { masonicSessionId: session.id },
-        });
-        return {
-          ...session.toJSON(),
-          presentesCount,
-          visitantesCount,
-        };
-      })
-    );
-
-    res.status(200).json({
-      data: sessionsWithCounts,
-      pagination: {
-        totalItems: count,
-        totalPages: Math.ceil(count / limit),
-        currentPage: parseInt(page, 10),
-      },
-    });
+    res.status(200).json(sessions);
   } catch (error) {
     console.error("Erro em getAllSessions:", error);
-    res
-      .status(500)
-      .json({
-        message: "Erro ao listar sessões maçónicas.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao listar sessões maçónicas.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -100,16 +88,13 @@ export const getSessionById = async (req, res) => {
     res.status(200).json(session);
   } catch (error) {
     console.error("Erro em getSessionById:", error);
-    res
-      .status(500)
-      .json({
-        message: "Erro ao buscar detalhes da sessão.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao buscar detalhes da sessão.",
+      errorDetails: error.message,
+    });
   }
 };
 
-// Criar uma nova sessão (Lógica de dados para o template ATUALIZADA)
 export const createSession = async (req, res) => {
   const { dataSessao, tipoSessao, subtipoSessao, ...restOfBody } = req.body;
   const transaction = await db.sequelize.transaction();
@@ -122,12 +107,11 @@ export const createSession = async (req, res) => {
 
     const sessionDate = new Date(dataSessao);
 
-    // --- CORREÇÃO APLICADA ---
     const dadosParaBalaustre = {
-      NumeroBalaustre: novaSessao.id, // Envia apenas o número
-      NumeroIrmaosQuadro: 0, // Valor inicial, será editado depois
-      NumeroVisitantes: 0, // Valor inicial, será editado depois
-      ClasseSessao: `${tipoSessao} de ${subtipoSessao}`, // O service cuidará de criar as versões _Titulo e _Corpo
+      NumeroBalaustre: novaSessao.id,
+      NumeroIrmaosQuadro: 0,
+      NumeroVisitantes: 0,
+      ClasseSessao: `${tipoSessao} de ${subtipoSessao}`,
       DiaSessao: sessionDate.toLocaleDateString("pt-BR", {
         dateStyle: "long",
         timeZone: "UTC",
@@ -156,7 +140,6 @@ export const createSession = async (req, res) => {
       Palavra: "(A preencher)",
       Emendas: "(A preencher)",
     };
-    // --- FIM DA CORREÇÃO ---
 
     const { googleDocId, pdfPath } = await createBalaustreFromTemplate(
       dadosParaBalaustre
@@ -164,7 +147,7 @@ export const createSession = async (req, res) => {
 
     await db.Balaustre.create(
       {
-        numero: novaSessao.id.toString(), // Salva o número como string
+        numero: novaSessao.id.toString(),
         ano: sessionDate.getFullYear(),
         path: pdfPath,
         MasonicSessionId: novaSessao.id,
@@ -191,16 +174,13 @@ export const createSession = async (req, res) => {
   } catch (error) {
     await transaction.rollback();
     console.error("Erro em createSession:", error);
-    res
-      .status(500)
-      .json({
-        message: "Erro ao criar sessão e balaústre automático.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao criar sessão e balaústre automático.",
+      errorDetails: error.message,
+    });
   }
 };
 
-// ... as funções updateSession e deleteSession permanecem as mesmas ...
 export const updateSession = async (req, res) => {
   const { id } = req.params;
   const { dataSessao, tipoSessao, subtipoSessao, troncoDeBeneficencia } =
@@ -219,12 +199,10 @@ export const updateSession = async (req, res) => {
     res.status(200).json(session);
   } catch (error) {
     console.error("Erro em updateSession:", error);
-    res
-      .status(500)
-      .json({
-        message: "Erro ao atualizar sessão.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao atualizar sessão.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -239,11 +217,9 @@ export const deleteSession = async (req, res) => {
     res.status(204).send();
   } catch (error) {
     console.error("Erro em deleteSession:", error);
-    res
-      .status(500)
-      .json({
-        message: "Erro ao deletar sessão.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao deletar sessão.",
+      errorDetails: error.message,
+    });
   }
 };

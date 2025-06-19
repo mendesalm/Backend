@@ -1,4 +1,4 @@
-// backend/controllers/biblioteca.controller.js
+// controllers/biblioteca.controller.js
 import db from "../models/index.js";
 import fs from "fs";
 import path from "path";
@@ -7,10 +7,6 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// CORREÇÃO: Removida a constante 'Livro' do escopo global do módulo.
-// const Livro = db.Biblioteca;
-
-// Função para remover arquivo, se existir e se for um path local
 const removeFile = (filePath) => {
   if (
     !filePath ||
@@ -59,7 +55,6 @@ export const createLivro = async (req, res) => {
         );
     }
 
-    // CORREÇÃO: Usar db.Biblioteca diretamente
     const novoLivro = await db.Biblioteca.create({
       titulo,
       autores,
@@ -82,12 +77,10 @@ export const createLivro = async (req, res) => {
       if (fs.existsSync(multerPath)) fs.unlinkSync(multerPath);
     }
     if (error.name === "SequelizeValidationError") {
-      return res
-        .status(400)
-        .json({
-          message: "Erro de validação.",
-          errors: error.errors.map((e) => ({ msg: e.message, path: e.path })),
-        });
+      return res.status(400).json({
+        message: "Erro de validação.",
+        errors: error.errors.map((e) => ({ msg: e.message, path: e.path })),
+      });
     }
     res
       .status(500)
@@ -95,20 +88,15 @@ export const createLivro = async (req, res) => {
   }
 };
 
-// Obter todos os livros
+/**
+ * REVERTIDO: Retorna um array simples de livros, sem paginação.
+ * Mantém a funcionalidade de busca e filtro por status.
+ */
 export const getAllLivros = async (req, res) => {
   try {
-    const {
-      page = 1,
-      limit = 10,
-      sortBy = "titulo",
-      order = "ASC",
-      search,
-      status,
-    } = req.query;
-    const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
-
+    const { search, status } = req.query;
     const whereClause = {};
+
     if (status) {
       whereClause.status = status;
     }
@@ -121,7 +109,7 @@ export const getAllLivros = async (req, res) => {
       ];
     }
 
-    const { count, rows } = await db.Biblioteca.findAndCountAll({
+    const livros = await db.Biblioteca.findAll({
       where: whereClause,
       include: [
         {
@@ -131,19 +119,10 @@ export const getAllLivros = async (req, res) => {
           required: false,
         },
       ],
-      limit: parseInt(limit, 10),
-      offset,
-      order: [[sortBy, order.toUpperCase()]],
+      order: [["titulo", "ASC"]],
     });
 
-    res.status(200).json({
-      data: rows,
-      pagination: {
-        totalItems: count,
-        totalPages: Math.ceil(count / limit),
-        currentPage: parseInt(page, 10),
-      },
-    });
+    res.status(200).json(livros); // Retorna o array diretamente
   } catch (error) {
     console.error("Erro ao buscar livros:", error);
     res
@@ -156,7 +135,6 @@ export const getAllLivros = async (req, res) => {
 export const getLivroById = async (req, res) => {
   try {
     const { id } = req.params;
-    // CORREÇÃO: Usar os modelos a partir do objeto `db`
     const livro = await db.Biblioteca.findByPk(id, {
       include: [
         {
@@ -197,7 +175,6 @@ export const getLivroById = async (req, res) => {
 export const updateLivro = async (req, res) => {
   try {
     const { id } = req.params;
-    // CORREÇÃO: Usar db.Biblioteca
     const livroExistente = await db.Biblioteca.findByPk(id);
 
     if (!livroExistente) {
@@ -225,7 +202,7 @@ export const updateLivro = async (req, res) => {
     }
 
     await livroExistente.update(dadosAtualizados);
-    const livroAtualizado = await db.Biblioteca.findByPk(id); // CORREÇÃO
+    const livroAtualizado = await db.Biblioteca.findByPk(id);
     res.status(200).json(livroAtualizado);
   } catch (error) {
     console.error("Erro ao atualizar livro:", error);
@@ -234,12 +211,10 @@ export const updateLivro = async (req, res) => {
       if (fs.existsSync(multerPath)) fs.unlinkSync(multerPath);
     }
     if (error.name === "SequelizeValidationError") {
-      return res
-        .status(400)
-        .json({
-          message: "Erro de validação.",
-          errors: error.errors.map((e) => ({ msg: e.message, path: e.path })),
-        });
+      return res.status(400).json({
+        message: "Erro de validação.",
+        errors: error.errors.map((e) => ({ msg: e.message, path: e.path })),
+      });
     }
     res
       .status(500)
@@ -251,7 +226,6 @@ export const updateLivro = async (req, res) => {
 export const deleteLivro = async (req, res) => {
   try {
     const { id } = req.params;
-    // CORREÇÃO: Usar db.Biblioteca
     const livro = await db.Biblioteca.findByPk(id);
 
     if (!livro) {
@@ -273,12 +247,10 @@ export const deleteLivro = async (req, res) => {
   } catch (error) {
     console.error("Erro ao deletar livro:", error);
     if (error.name === "SequelizeForeignKeyConstraintError") {
-      return res
-        .status(409)
-        .json({
-          message:
-            "Não é possível deletar este livro pois ele possui um histórico de empréstimos associado. Considere inativá-lo em vez de deletar.",
-        });
+      return res.status(409).json({
+        message:
+          "Não é possível deletar este livro pois ele possui um histórico de empréstimos associado. Considere inativá-lo em vez de deletar.",
+      });
     }
     res
       .status(500)

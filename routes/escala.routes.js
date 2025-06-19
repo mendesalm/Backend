@@ -4,12 +4,25 @@ import {
   updateOrdemEscala,
   getProximoResponsavel,
 } from "../controllers/escala.controller.js";
-import { protect } from "../middleware/authMiddleware.js";
+import authMiddleware from "../middlewares/auth.middleware.js";
+import { authorizeByFeature } from "../middlewares/authorizeByFeature.middleware.js"; // <-- Importar
 
 const router = express.Router();
 
-router.get("/", protect, getEscala);
-router.put("/ordenar", protect, updateOrdemEscala);
-router.get("/proximo-responsavel", protect, getProximoResponsavel);
+// Aplica a autenticação para todas as rotas
+router.use(authMiddleware);
+
+// Protege cada rota com sua permissão específica
+router.get("/", authorizeByFeature("visualizarEscalaJantar"), getEscala);
+router.put(
+  "/ordenar",
+  authorizeByFeature("gerenciarEscalaJantar"),
+  updateOrdemEscala
+);
+router.get(
+  "/proximo-responsavel",
+  authorizeByFeature("visualizarEscalaJantar"),
+  getProximoResponsavel
+);
 
 export default router;
