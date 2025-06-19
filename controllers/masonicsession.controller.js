@@ -1,7 +1,7 @@
 import db from "../models/index.js";
 import { createBalaustreFromTemplate } from "../services/googleDocs.service.js";
+import * as ChancelerService from "../services/chanceler.service.js"; // Importa o novo serviço
 
-// REATORADO: A função agora usa subqueries para evitar o problema N+1.
 export const getAllSessions = async (req, res) => {
   try {
     const { sortBy = "dataSessao", order = "DESC", tipoSessao } = req.query;
@@ -14,7 +14,6 @@ export const getAllSessions = async (req, res) => {
     const sessions = await db.MasonicSession.findAll({
       where: whereClause,
       attributes: {
-        // Inclui os atributos do modelo e adiciona as contagens via subquery
         include: [
           [
             db.sequelize.literal(`(
@@ -219,6 +218,98 @@ export const deleteSession = async (req, res) => {
     console.error("Erro em deleteSession:", error);
     res.status(500).json({
       message: "Erro ao deletar sessão.",
+      errorDetails: error.message,
+    });
+  }
+};
+// --- NOVA FUNÇÃO PARA LISTAR PRESENTES ---
+export const getSessionAttendees = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const session = await db.MasonicSession.findByPk(id, {
+      include: [
+        {
+          model: db.LodgeMember,
+          as: "presentes",
+          attributes: ["id"], // Pega apenas o ID dos membros presentes
+          through: { attributes: [] },
+        },
+      ],
+    });
+
+    if (!session) {
+      return res.status(404).json({ message: "Sessão não encontrada." });
+    }
+
+    // Mapeia o resultado para retornar apenas um array de IDs
+    const presentesIds = session.presentes
+      ? session.presentes.map((membro) => membro.id)
+      : [];
+
+    res.status(200).json(presentesIds);
+  } catch (error) {
+    console.error("Erro ao buscar lista de IDs de presentes:", error);
+    res.status(500).json({
+      message: "Erro ao buscar lista de presentes.",
+      errorDetails: error.message,
+    });
+  }
+};
+export const setSessionAttendees = async (req, res) => {
+  const t = await db.sequelize.transaction();
+  try {
+    const { id } = req.params;
+    const { presentMemberIds } = req.body;
+
+    const session = await db.MasonicSession.findByPk(id, { transaction: t });
+    if (!session) {
+      await t.rollback();
+      return res.status(404).json({ message: "Sessão não encontrada." });
+    }
+
+    // O método 'setPresentes' do Sequelize lida com a remoção de antigos
+    // e adição de novos presentes de forma atômica. É a maneira mais segura.
+    await session.setPresentes(presentMemberIds, { transaction: t });
+
+    await t.commit();
+    res
+      .status(200)
+      .json({ message: "Lista de presença atualizada com sucesso." });
+  } catch (error) {
+    await t.rollback();
+    console.error("Erro ao salvar lista de presentes:", error);
+    res
+      .status(500)
+      .json({
+        message: "Erro ao salvar lista de presentes.",
+        errorDetails: error.message,
+      });
+  }
+};
+// --- NOVA FUNÇÃO PARA O PAINEL DO CHANCELER ---
+export const getPainelChanceler = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { dataFim } = req.query;
+
+    if (!dataFim) {
+      return res
+        .status(400)
+        .json({ message: "O parâmetro 'dataFim' é obrigatório." });
+    }
+
+    // Delega toda a lógica de busca para a camada de serviço
+    const panelData = await ChancelerService.getPanelData(id, dataFim);
+
+    res.status(200).json(panelData);
+  } catch (error) {
+    console.error("Erro ao buscar dados do painel do Chanceler:", error);
+    // Trata erros comuns como 'não encontrado' de forma amigável
+    if (error.message.includes("não encontrada")) {
+      return res.status(404).json({ message: error.message });
+    }
+    res.status(500).json({
+      message: "Erro interno ao processar a solicitação.",
       errorDetails: error.message,
     });
   }
