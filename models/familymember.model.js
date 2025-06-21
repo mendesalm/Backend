@@ -11,8 +11,6 @@ export default (sequelize, DataTypes) => {
           notEmpty: { msg: "O nome completo do familiar é obrigatório." },
         },
       },
-
-      // CORREÇÃO: Valores do ENUM ajustados para minúsculas para corresponder ao frontend.
       parentesco: {
         type: DataTypes.ENUM("Cônjuge", "Esposa", "Filho", "Filha"),
         allowNull: false,
@@ -24,7 +22,6 @@ export default (sequelize, DataTypes) => {
           },
         },
       },
-
       dataNascimento: {
         type: DataTypes.DATEONLY,
         allowNull: false,
@@ -52,6 +49,7 @@ export default (sequelize, DataTypes) => {
       FamilyMember.belongsTo(models.LodgeMember, {
         foreignKey: { name: "lodgeMemberId", allowNull: false },
         onDelete: "CASCADE",
+        as: "membro",
       });
     } else {
       console.error(

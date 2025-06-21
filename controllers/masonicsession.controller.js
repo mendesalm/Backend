@@ -1,11 +1,21 @@
 import db from "../models/index.js";
-import { createBalaustreFromTemplate } from "../services/googleDocs.service.js";
-import * as ChancelerService from "../services/chanceler.service.js"; // Importa o novo serviço
+import path from "path";
+// --- Importa todos os serviços necessários ---
+import {
+  createBalaustreFromTemplate,
+  createEditalFromTemplate,
+} from "../services/googleDocs.service.js";
+import * as ChancelerService from "../services/chanceler.service.js";
+import { avancarEscalaSequencialEObterResponsavel } from "../services/escala.service.js";
+import { enviarEditalDeConvocacaoPorEmail } from "../services/notification.service.js";
 
+/**
+ * Lista todas as sessões usando a agregação do Sequelize para contagem,
+ * evitando o uso de subconsultas literais que causam lentidão.
+ */
 export const getAllSessions = async (req, res) => {
   try {
     const { sortBy = "dataSessao", order = "DESC", tipoSessao } = req.query;
-
     const whereClause = {};
     if (tipoSessao) {
       whereClause.tipoSessao = tipoSessao;
@@ -13,28 +23,6 @@ export const getAllSessions = async (req, res) => {
 
     const sessions = await db.MasonicSession.findAll({
       where: whereClause,
-      attributes: {
-        include: [
-          [
-            db.sequelize.literal(`(
-              SELECT COUNT(*)
-              FROM SessionAttendees AS presentes
-              WHERE
-                presentes.sessionId = MasonicSession.id
-            )`),
-            "presentesCount",
-          ],
-          [
-            db.sequelize.literal(`(
-              SELECT COUNT(*)
-              FROM VisitantesSessao AS visitantes
-              WHERE
-                visitantes.masonicSessionId = MasonicSession.id
-            )`),
-            "visitantesCount",
-          ],
-        ],
-      },
       include: [
         {
           model: db.Balaustre,
@@ -49,8 +37,29 @@ export const getAllSessions = async (req, res) => {
           ],
           required: false,
         },
+        {
+          model: db.LodgeMember,
+          as: "presentes",
+          attributes: [],
+          through: { attributes: [] },
+        },
+        { model: db.VisitanteSessao, as: "visitantes", attributes: [] },
       ],
+      attributes: {
+        include: [
+          [
+            db.sequelize.fn("COUNT", db.sequelize.col("presentes.id")),
+            "presentesCount",
+          ],
+          [
+            db.sequelize.fn("COUNT", db.sequelize.col("visitantes.id")),
+            "visitantesCount",
+          ],
+        ],
+      },
+      group: ["MasonicSession.id", "Balaustre.id"],
       order: [[sortBy, order.toUpperCase()]],
+      subQuery: false,
     });
 
     res.status(200).json(sessions);
@@ -94,22 +103,67 @@ export const getSessionById = async (req, res) => {
   }
 };
 
+/**
+ * Função refatorada que separa a operação crítica (criação da sessão e avanço da escala)
+ * das operações secundárias (geração de documentos e envio de e-mail).
+ */
 export const createSession = async (req, res) => {
   const { dataSessao, tipoSessao, subtipoSessao, ...restOfBody } = req.body;
-  const transaction = await db.sequelize.transaction();
 
+  // --- PARTE 1: Operação Crítica e Transacional ---
+  let novaSessao;
+  let responsavelJantar;
+  const transaction = await db.sequelize.transaction();
   try {
-    const novaSessao = await db.MasonicSession.create(
-      { dataSessao, tipoSessao, subtipoSessao, ...restOfBody },
+    responsavelJantar = await avancarEscalaSequencialEObterResponsavel(
+      transaction
+    );
+    const tipoResponsabilidade = responsavelJantar
+      ? "Sequencial"
+      : "Institucional";
+
+    novaSessao = await db.MasonicSession.create(
+      {
+        dataSessao,
+        tipoSessao,
+        subtipoSessao,
+        responsavelJantarLodgeMemberId: responsavelJantar
+          ? responsavelJantar.id
+          : null,
+        tipoResponsabilidadeJantar: tipoResponsabilidade,
+        ...restOfBody,
+      },
       { transaction }
     );
 
-    const sessionDate = new Date(dataSessao);
+    await transaction.commit();
+    console.log(
+      `Sessão ${novaSessao.id} e avanço da escala salvos com sucesso no banco.`
+    );
+  } catch (error) {
+    await transaction.rollback();
+    console.error(
+      "Erro na transação principal (criação da sessão / avanço da escala):",
+      error
+    );
+    return res.status(500).json({
+      message: "Falha ao criar o registro da sessão ou avançar a escala.",
+      errorDetails: error.message,
+    });
+  }
 
-    const dadosParaBalaustre = {
+  // --- PARTE 2: Operações Secundárias (Pós-Transação) ---
+  try {
+    const sessionDate = new Date(novaSessao.dataSessao);
+    const nomeConjuge =
+      responsavelJantar?.familiares?.[0]?.nomeCompleto || "não informada";
+    const nomeFinalResponsavel = responsavelJantar
+      ? `${responsavelJantar.NomeCompleto} e Cunhada ${nomeConjuge}`
+      : "Oferecido pela Loja";
+
+    // Objeto completo com todos os placeholders necessários
+    const dadosParaTemplate = {
       NumeroBalaustre: novaSessao.id,
-      NumeroIrmaosQuadro: 0,
-      NumeroVisitantes: 0,
       ClasseSessao: `${tipoSessao} de ${subtipoSessao}`,
       DiaSessao: sessionDate.toLocaleDateString("pt-BR", {
         dateStyle: "long",
@@ -119,6 +173,7 @@ export const createSession = async (req, res) => {
       HoraInicioSessao: "19h30",
       HoraEncerramento: "(A preencher)",
       EmendasBalaustreAnterior: "Sem",
+
       DataAssinatura: `Anápolis-Goiás, ${sessionDate.toLocaleDateString(
         "pt-BR",
         { dateStyle: "long", timeZone: "UTC" }
@@ -130,6 +185,10 @@ export const createSession = async (req, res) => {
       Secretario: "(A preencher)",
       Tesoureiro: "(A preencher)",
       Chanceler: "(A preencher)",
+      ResponsavelJantar: nomeFinalResponsavel,
+      NumeroIrmaosQuadro: 0,
+      NumeroVisitantes: 0,
+      EmendasBalaustreAnterior: "sem",
       ExpedienteRecebido: "(A preencher)",
       ExpedienteExpedido: "(A preencher)",
       SacoProposta: "(A preencher)",
@@ -138,43 +197,64 @@ export const createSession = async (req, res) => {
       TroncoBeneficiencia: "0",
       Palavra: "(A preencher)",
       Emendas: "(A preencher)",
+
+      data_sessao_extenso: sessionDate.toLocaleDateString("pt-BR", {
+        dateStyle: "long",
+        timeZone: "UTC",
+      }),
+      dia_semana: sessionDate.toLocaleDateString("pt-BR", {
+        weekday: "long",
+        timeZone: "UTC",
+      }),
+      hora_sessao: "19h30",
+      tipo_sessao: tipoSessao,
+      grau_sessao: subtipoSessao,
     };
 
-    const { googleDocId, pdfPath } = await createBalaustreFromTemplate(
-      dadosParaBalaustre
+    // Gera ambos os documentos
+    const [balaustreInfo, editalInfo] = await Promise.all([
+      createBalaustreFromTemplate(dadosParaTemplate),
+      createEditalFromTemplate(dadosParaTemplate),
+    ]);
+
+    // Atualiza a sessão e cria o registro do Balaústre
+    const sessaoParaAtualizar = await db.MasonicSession.findByPk(novaSessao.id);
+    await sessaoParaAtualizar.update({
+      editalGoogleDocId: editalInfo.googleDocId,
+      caminhoEditalPdf: editalInfo.pdfPath,
+    });
+
+    await db.Balaustre.create({
+      numero: novaSessao.id.toString(),
+      ano: sessionDate.getFullYear(),
+      path: balaustreInfo.pdfPath,
+      MasonicSessionId: novaSessao.id,
+      googleDocId: balaustreInfo.googleDocId,
+      caminhoPdfLocal: balaustreInfo.pdfPath,
+      dadosFormulario: dadosParaTemplate,
+    });
+
+    // Envia o e-mail de convocação
+    const caminhoAbsolutoEdital = path.resolve(
+      process.cwd(),
+      editalInfo.pdfPath.substring(1)
     );
+    enviarEditalDeConvocacaoPorEmail(novaSessao, caminhoAbsolutoEdital);
 
-    await db.Balaustre.create(
-      {
-        numero: novaSessao.id.toString(),
-        ano: sessionDate.getFullYear(),
-        path: pdfPath,
-        MasonicSessionId: novaSessao.id,
-        googleDocId: googleDocId,
-        caminhoPdfLocal: pdfPath,
-        dadosFormulario: dadosParaBalaustre,
-      },
-      { transaction }
-    );
-
-    await transaction.commit();
-
+    // Retorna a resposta completa para o frontend
     const sessaoCompleta = await db.MasonicSession.findByPk(novaSessao.id, {
       include: [{ model: db.Balaustre, as: "Balaustre" }],
     });
-
-    const finalObject = {
-      ...sessaoCompleta.toJSON(),
-      presentesCount: 0,
-      visitantesCount: 0,
-    };
-
-    res.status(201).json(finalObject);
+    res.status(201).json(sessaoCompleta);
   } catch (error) {
-    await transaction.rollback();
-    console.error("Erro em createSession:", error);
-    res.status(500).json({
-      message: "Erro ao criar sessão e balaústre automático.",
+    console.error(
+      "Erro nas operações secundárias (geração de docs/email):",
+      error
+    );
+    res.status(201).json({
+      message:
+        "Sessão criada e escala avançada, mas com falha ao gerar documentos ou enviar e-mail.",
+      session: novaSessao, // Retorna a sessão criada mesmo em caso de erro secundário
       errorDetails: error.message,
     });
   }
@@ -222,7 +302,7 @@ export const deleteSession = async (req, res) => {
     });
   }
 };
-// --- NOVA FUNÇÃO PARA LISTAR PRESENTES ---
+
 export const getSessionAttendees = async (req, res) => {
   try {
     const { id } = req.params;
@@ -231,21 +311,17 @@ export const getSessionAttendees = async (req, res) => {
         {
           model: db.LodgeMember,
           as: "presentes",
-          attributes: ["id"], // Pega apenas o ID dos membros presentes
+          attributes: ["id"],
           through: { attributes: [] },
         },
       ],
     });
-
     if (!session) {
       return res.status(404).json({ message: "Sessão não encontrada." });
     }
-
-    // Mapeia o resultado para retornar apenas um array de IDs
     const presentesIds = session.presentes
       ? session.presentes.map((membro) => membro.id)
       : [];
-
     res.status(200).json(presentesIds);
   } catch (error) {
     console.error("Erro ao buscar lista de IDs de presentes:", error);
@@ -255,22 +331,18 @@ export const getSessionAttendees = async (req, res) => {
     });
   }
 };
+
 export const setSessionAttendees = async (req, res) => {
   const t = await db.sequelize.transaction();
   try {
     const { id } = req.params;
     const { presentMemberIds } = req.body;
-
     const session = await db.MasonicSession.findByPk(id, { transaction: t });
     if (!session) {
       await t.rollback();
       return res.status(404).json({ message: "Sessão não encontrada." });
     }
-
-    // O método 'setPresentes' do Sequelize lida com a remoção de antigos
-    // e adição de novos presentes de forma atômica. É a maneira mais segura.
     await session.setPresentes(presentMemberIds, { transaction: t });
-
     await t.commit();
     res
       .status(200)
@@ -278,33 +350,26 @@ export const setSessionAttendees = async (req, res) => {
   } catch (error) {
     await t.rollback();
     console.error("Erro ao salvar lista de presentes:", error);
-    res
-      .status(500)
-      .json({
-        message: "Erro ao salvar lista de presentes.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao salvar lista de presentes.",
+      errorDetails: error.message,
+    });
   }
 };
-// --- NOVA FUNÇÃO PARA O PAINEL DO CHANCELER ---
+
 export const getPainelChanceler = async (req, res) => {
   try {
     const { id } = req.params;
     const { dataFim } = req.query;
-
     if (!dataFim) {
       return res
         .status(400)
         .json({ message: "O parâmetro 'dataFim' é obrigatório." });
     }
-
-    // Delega toda a lógica de busca para a camada de serviço
     const panelData = await ChancelerService.getPanelData(id, dataFim);
-
     res.status(200).json(panelData);
   } catch (error) {
     console.error("Erro ao buscar dados do painel do Chanceler:", error);
-    // Trata erros comuns como 'não encontrado' de forma amigável
     if (error.message.includes("não encontrada")) {
       return res.status(404).json({ message: error.message });
     }

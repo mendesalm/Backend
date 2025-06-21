@@ -70,8 +70,20 @@ export default (sequelize, DataTypes) => {
       );
     }
 
-    // --- ATUALIZAÇÃO DA ASSOCIAÇÃO DE ATA PARA BALAÚSTRE ---
-    // O bloco 'if (models.Ata)' foi removido e substituído por este:
+    if (models.ResponsabilidadeJantar) {
+      MasonicSession.hasMany(models.ResponsabilidadeJantar, {
+        as: "responsaveisJantar",
+        foreignKey: {
+          name: "sessaoDesignadaId",
+          allowNull: true,
+        },
+      });
+    } else {
+      console.error(
+        "MODELO AUSENTE: ResponsabilidadeJantar não pôde ser associado em MasonicSession."
+      );
+    }
+
     if (models.Balaustre) {
       MasonicSession.hasOne(models.Balaustre, {
         as: "Balaustre", // Alias para acessar o balaústre da sessão

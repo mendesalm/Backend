@@ -1,23 +1,17 @@
 import db from "../models/index.js";
-const { Op, literal } = db.Sequelize;
+const { Op } = db.Sequelize;
 
 /**
  * Função auxiliar para verificar se uma data (ignorando o ano) está dentro de um intervalo.
- * @param {Date} date - A data a ser verificada (ex: data de nascimento).
- * @param {Date} startDate - A data de início do intervalo.
- * @param {Date} endDate - A data de fim do intervalo.
- * @returns {boolean}
  */
 const isDateInRange = (date, startDate, endDate) => {
   if (!date) return false;
   const checkDate = new Date(date);
+  const startYear = startDate.getFullYear();
 
-  // Normaliza o ano da data de aniversário para o ano da data de início para comparação
-  checkDate.setFullYear(startDate.getFullYear());
-
-  // Se a data já passou este ano, verifica contra o próximo ano
+  checkDate.setFullYear(startYear);
   if (checkDate < startDate) {
-    checkDate.setFullYear(startDate.getFullYear() + 1);
+    checkDate.setFullYear(startYear + 1);
   }
 
   return checkDate >= startDate && checkDate <= endDate;
@@ -25,9 +19,6 @@ const isDateInRange = (date, startDate, endDate) => {
 
 /**
  * Busca aniversariantes (nascimento, casamento, maçônico) em um período.
- * @param {Date} dataInicio - Data de início da busca.
- * @param {Date} dataFim - Data de fim da busca.
- * @returns {Object} Objeto com listas de aniversariantes.
  */
 async function findAnniversaries(dataInicio, dataFim) {
   const allMembers = await db.LodgeMember.findAll({
@@ -35,17 +26,22 @@ async function findAnniversaries(dataInicio, dataFim) {
     attributes: [
       "id",
       "NomeCompleto",
-      "dataNascimento",
-      "dataCasamento",
-      "dataIniciacao",
-      "dataElevacao",
-      "dataExaltacao",
+      "DataNascimento",
+      "DataCasamento",
+      "DataIniciacao",
+      "DataElevacao",
+      "DataExaltacao",
     ],
   });
 
   const allFamily = await db.FamilyMember.findAll({
     include: [
-      { model: db.LodgeMember, attributes: ["NomeCompleto"], required: true },
+      {
+        model: db.LodgeMember,
+        as: "membro",
+        attributes: ["NomeCompleto"],
+        required: true,
+      },
     ],
   });
 
@@ -55,32 +51,29 @@ async function findAnniversaries(dataInicio, dataFim) {
     maconicos: [],
   };
 
-  // Filtra aniversários em JavaScript para lidar corretamente com a lógica de datas
+  // Lógica para processar e agrupar os aniversariantes...
   allMembers.forEach((membro) => {
-    // Nascimento do Membro
-    if (isDateInRange(membro.dataNascimento, dataInicio, dataFim)) {
+    if (isDateInRange(membro.DataNascimento, dataInicio, dataFim)) {
       aniversariantes.nascimentos.membros.push({
         id: membro.id,
         nome: membro.NomeCompleto,
-        data: membro.dataNascimento,
+        data: membro.DataNascimento,
       });
     }
-    // Casamento
-    if (isDateInRange(membro.dataCasamento, dataInicio, dataFim)) {
+    if (isDateInRange(membro.DataCasamento, dataInicio, dataFim)) {
       aniversariantes.casamentos.push({
         id: membro.id,
         nome: membro.NomeCompleto,
-        data: membro.dataCasamento,
+        data: membro.DataCasamento,
       });
     }
-    // Maçônicos
     const anivMaconicos = [];
-    if (isDateInRange(membro.dataIniciacao, dataInicio, dataFim))
-      anivMaconicos.push({ tipo: "Iniciação", data: membro.dataIniciacao });
-    if (isDateInRange(membro.dataElevacao, dataInicio, dataFim))
-      anivMaconicos.push({ tipo: "Elevação", data: membro.dataElevacao });
-    if (isDateInRange(membro.dataExaltacao, dataInicio, dataFim))
-      anivMaconicos.push({ tipo: "Exaltação", data: membro.dataExaltacao });
+    if (isDateInRange(membro.DataIniciacao, dataInicio, dataFim))
+      anivMaconicos.push({ tipo: "Iniciação", data: membro.DataIniciacao });
+    if (isDateInRange(membro.DataElevacao, dataInicio, dataFim))
+      anivMaconicos.push({ tipo: "Elevação", data: membro.DataElevacao });
+    if (isDateInRange(membro.DataExaltacao, dataInicio, dataFim))
+      anivMaconicos.push({ tipo: "Exaltação", data: membro.DataExaltacao });
 
     if (anivMaconicos.length > 0) {
       aniversariantes.maconicos.push({
@@ -98,7 +91,7 @@ async function findAnniversaries(dataInicio, dataFim) {
         nome: familiar.nomeCompleto,
         data: familiar.dataNascimento,
         parentesco: familiar.parentesco,
-        membroParente: familiar.LodgeMember.NomeCompleto,
+        membroParente: familiar.membro.NomeCompleto,
       });
     }
   });
@@ -107,32 +100,29 @@ async function findAnniversaries(dataInicio, dataFim) {
 }
 
 /**
- * Busca o responsável pelo jantar da sessão e seu cônjuge.
- * A lógica foi ajustada para refletir como a escala funciona (ponteiro), não por sessionId.
- * @returns {Object} Objeto com os nomes do responsável e do cônjuge.
+ * --- FUNÇÃO CORRIGIDA ---
+ * Busca o responsável pelo jantar da SESSÃO ATUAL e seu cônjuge.
+ * @param {object} session - O objeto da sessão maçônica.
  */
-async function findDinnerResponsible() {
-  const ponteiroConfig = await db.Configuracao.findOne({
-    where: { chave: "escala_jantar_ponteiro" },
-  });
-  const proximaOrdem = ponteiroConfig ? parseInt(ponteiroConfig.valor, 10) : 1;
+async function findCurrentSessionResponsible(session) {
+  // 1. Verifica se a sessão tem um responsável designado
+  if (!session.responsavelJantarLodgeMemberId) {
+    return { responsavelNome: "Institucional / A definir", conjugeNome: "N/A" };
+  }
 
-  const proximoNaEscala = await db.EscalaJantar.findOne({
-    where: { ordem: proximaOrdem, status: "ativo" },
-  });
+  // 2. Busca os dados do membro responsável que já está na sessão
+  const responsavel = await db.LodgeMember.findByPk(
+    session.responsavelJantarLodgeMemberId
+  );
 
-  if (!proximoNaEscala) {
+  if (!responsavel) {
     return {
-      responsavelNome: "Não definido na escala",
-      conjugeNome: "Não definido",
+      responsavelNome: "Responsável não encontrado",
+      conjugeNome: "N/A",
     };
   }
 
-  const responsavel = await db.LodgeMember.findByPk(proximoNaEscala.membroId);
-  if (!responsavel) {
-    return { responsavelNome: "Responsável não encontrado", conjugeNome: "" };
-  }
-
+  // 3. Busca o cônjuge do responsável encontrado
   const conjuge = await db.FamilyMember.findOne({
     where: {
       lodgeMemberId: responsavel.id,
@@ -157,18 +147,17 @@ export const getPanelData = async (sessionId, dataFimStr) => {
 
   const dataInicio = new Date(session.dataSessao);
   const dataFim = new Date(dataFimStr);
-
-  // Ajuste para garantir que a data final inclua o dia inteiro
   dataFim.setHours(23, 59, 59, 999);
 
+  // --- CORREÇÃO APLICADA AQUI ---
+  // A função agora chama a nova lógica 'findCurrentSessionResponsible'
   const [jantar, aniversariantes] = await Promise.all([
-    findDinnerResponsible(),
+    findCurrentSessionResponsible(session),
     findAnniversaries(dataInicio, dataFim),
   ]);
 
-  // Formatando a resposta para o formato exato solicitado
   return {
-    jantar,
+    jantar, // 'jantar' agora contém os dados do responsável da SESSÃO ATUAL
     aniversariantes: {
       membros: aniversariantes.nascimentos.membros,
       familiares: aniversariantes.nascimentos.familiares,

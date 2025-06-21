@@ -56,7 +56,7 @@ const modelDefinitions = [
   { key: "ParticipanteEvento", file: "participante_evento.model.js" },
   { key: "MenuItem", file: "menu_item.model.js" },
   { key: "FotoEvento", file: "foto_evento.model.js" },
-  { key: "EscalaJantar", file: "escalaJantar.model.js" },
+  { key: "ResponsabilidadeJantar", file: "responsabilidade_jantar.model.js" },
   { key: "Configuracao", file: "configuracao.model.js" },
 ];
 

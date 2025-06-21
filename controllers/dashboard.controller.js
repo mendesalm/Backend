@@ -49,7 +49,12 @@ const getProximosAniversariantes = async (dias = 7) => {
   });
   const familiares = await db.FamilyMember.findAll({
     include: [
-      { model: db.LodgeMember, attributes: ["NomeCompleto"], required: true },
+      {
+        model: db.LodgeMember,
+        as: "membro",
+        attributes: ["NomeCompleto"],
+        required: true,
+      },
     ],
   });
 
@@ -146,11 +151,9 @@ export const getDashboardData = async (req, res) => {
     res.status(200).json(dashboardData);
   } catch (error) {
     console.error("Erro ao gerar dados do dashboard:", error);
-    res
-      .status(500)
-      .json({
-        message: "Erro ao gerar dados do dashboard.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao gerar dados do dashboard.",
+      errorDetails: error.message,
+    });
   }
 };

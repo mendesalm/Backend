@@ -252,3 +252,66 @@ export async function enviarConvocacaoSessaoColetiva() {
     console.error("[Notify] Erro ao enviar convocação coletiva:", error);
   }
 }
+/**
+ * --- NOVA FUNÇÃO ---
+ * Envia o email de convocação com o Edital em PDF como anexo.
+ * @param {object} session - O objeto da sessão recém-criada.
+ * @param {string} caminhoEditalPdf - O caminho relativo para o PDF do edital.
+ */
+export const enviarEditalDeConvocacaoPorEmail = async (
+  session,
+  caminhoEditalPdf
+) => {
+  try {
+    const membros = await db.LodgeMember.findAll({
+      where: { Situacao: "Ativo", Email: { [db.Sequelize.Op.ne]: null } },
+      attributes: ["Email"],
+    });
+
+    if (membros.length === 0) {
+      console.log(
+        "Nenhum membro ativo com email para notificar sobre o edital."
+      );
+      return;
+    }
+
+    const to = membros.map((m) => m.Email).join(", ");
+    const dataFormatada = new Date(session.dataSessao).toLocaleDateString(
+      "pt-BR",
+      { dateStyle: "full", timeZone: "UTC" }
+    );
+    const subject = `Convocação para Sessão de ${session.tipoSessao} - ${dataFormatada}`;
+    const html = `
+      <p>Prezados Irmãos,</p>
+      <p>Segue em anexo o Edital de Convocação para a nossa próxima Sessão Maçônica.</p>
+      <p>Contamos com a presença de todos.</p>
+      <p>TFA.</p>
+    `;
+
+    // Constrói o caminho absoluto para o anexo
+    const caminhoAbsolutoAnexo = path.resolve(
+      process.cwd(),
+      "uploads",
+      caminhoEditalPdf
+    );
+
+    await sendEmail({
+      to: to,
+      subject: subject,
+      html: html,
+      attachments: [
+        {
+          filename: `Edital_Convocacao_${session.dataSessao}.pdf`,
+          path: caminhoAbsolutoAnexo,
+          contentType: "application/pdf",
+        },
+      ],
+    });
+
+    console.log(
+      `Email de convocação com edital enviado para ${membros.length} membros.`
+    );
+  } catch (error) {
+    console.error("Erro ao enviar email de convocação com edital:", error);
+  }
+};

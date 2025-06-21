@@ -3,26 +3,30 @@ import {
   getEscala,
   updateOrdemEscala,
   getProximoResponsavel,
+  inicializarEscala, // Adicionando a nova função
+  adicionarMembroEscala,
+  updateStatusEscala,
+  removerMembroEscala,
 } from "../controllers/escala.controller.js";
 import authMiddleware from "../middlewares/auth.middleware.js";
-import { authorizeByFeature } from "../middlewares/authorizeByFeature.middleware.js"; // <-- Importar
+import { authorizeByFeature } from "../middlewares/authorizeByFeature.middleware.js";
 
 const router = express.Router();
-
-// Aplica a autenticação para todas as rotas
 router.use(authMiddleware);
 
-// Protege cada rota com sua permissão específica
-router.get("/", authorizeByFeature("visualizarEscalaJantar"), getEscala);
-router.put(
-  "/ordenar",
-  authorizeByFeature("gerenciarEscalaJantar"),
-  updateOrdemEscala
-);
-router.get(
-  "/proximo-responsavel",
-  authorizeByFeature("visualizarEscalaJantar"),
-  getProximoResponsavel
-);
+// Permissões
+const canView = authorizeByFeature("visualizarEscalaJantar");
+const canManage = authorizeByFeature("gerenciarEscalaJantar");
+
+// Rotas de Visualização
+router.get("/", canView, getEscala);
+router.get("/proximo-responsavel", canView, getProximoResponsavel);
+
+// Rotas de Gerenciamento
+router.post("/inicializar", canManage, inicializarEscala);
+router.post("/adicionar", canManage, adicionarMembroEscala); // Rota para adicionar um único membro
+router.put("/ordenar", canManage, updateOrdemEscala);
+router.put("/:escalaId/status", canManage, updateStatusEscala);
+router.delete("/:escalaId", canManage, removerMembroEscala);
 
 export default router;
