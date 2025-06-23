@@ -18,7 +18,7 @@ router.post(
   canManageVisitors,
   visitorRules,
   handleValidationErrors,
-  visitorController.createVisitor
+  visitorController.createVisitorInSession // Rota de criação agora aponta para a nova função
 );
 router.put(
   "/:visitorId",
@@ -26,14 +26,14 @@ router.put(
   visitorIdParamRule,
   visitorRules,
   handleValidationErrors,
-  visitorController.updateVisitor
+  visitorController.updateVisitorInSession
 );
 router.delete(
   "/:visitorId",
   canManageVisitors,
   visitorIdParamRule,
   handleValidationErrors,
-  visitorController.deleteVisitor
+  visitorController.deleteVisitorFromSession
 );
 
 export default router;

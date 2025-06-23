@@ -4,6 +4,7 @@ import path from "path";
 import {
   createBalaustreFromTemplate,
   createEditalFromTemplate,
+  deleteGoogleFile, // Importar a função de deletar
 } from "../services/googleDocs.service.js";
 import * as ChancelerService from "../services/chanceler.service.js";
 import { avancarEscalaSequencialEObterResponsavel } from "../services/escala.service.js";
@@ -287,14 +288,82 @@ export const updateSession = async (req, res) => {
 
 export const deleteSession = async (req, res) => {
   const { id } = req.params;
+  const transaction = await db.sequelize.transaction(); // Inicia a transação
   try {
-    const session = await db.MasonicSession.findByPk(id);
+    const session = await db.MasonicSession.findByPk(id, { transaction });
+
     if (!session) {
+      await transaction.rollback();
       return res.status(404).json({ message: "Sessão não encontrada." });
     }
-    await session.destroy();
+
+    // --- LÓGICA DE REVERSÃO DA ESCALA ---
+    if (
+      session.responsavelJantarLodgeMemberId &&
+      session.tipoResponsabilidadeJantar === "Sequencial"
+    ) {
+      console.log("Revertendo avanço sequencial da escala de jantar...");
+      // Encontra a entrada na escala que foi marcada como "Cumprido" para esta sessão.
+      // A lógica assume que a entrada mais recente "Cumprido" para este membro é a correta.
+      const responsavelEntry = await db.ResponsabilidadeJantar.findOne({
+        where: {
+          lodgeMemberId: session.responsavelJantarLodgeMemberId,
+          status: "Cumprido",
+        },
+        order: [["ordem", "DESC"]],
+        transaction,
+      });
+
+      if (responsavelEntry) {
+        // Encontra a menor ordem atual para colocar o membro de volta no topo
+        const minOrdemResult = await db.ResponsabilidadeJantar.findOne({
+          attributes: [
+            [db.sequelize.fn("min", db.sequelize.col("ordem")), "minOrdem"],
+          ],
+          where: { status: "Ativo", sessaoDesignadaId: null },
+          raw: true,
+          transaction,
+        });
+
+        // Define a nova ordem como um valor menor que a menor ordem atual
+        const novaOrdem = (minOrdemResult.minOrdem || 1) - 1;
+
+        // Atualiza a entrada para reverter o status e a ordem
+        await responsavelEntry.update(
+          {
+            status: "Ativo",
+            ordem: novaOrdem,
+          },
+          { transaction }
+        );
+        console.log(
+          `Membro ID ${responsavelEntry.lodgeMemberId} recolocado no topo da escala.`
+        );
+      } else {
+        console.warn(
+          `Não foi encontrada a entrada 'Cumprido' para o membro ${session.responsavelJantarLodgeMemberId} para reverter a escala.`
+        );
+      }
+    }
+
+    // --- FIM DA LÓGICA DE REVERSÃO ---
+
+    // Deleta os arquivos do Google Drive se existirem
+    if (session.editalGoogleDocId) {
+      await deleteGoogleFile(session.editalGoogleDocId);
+    }
+    const balaustre = await session.getBalaustre({ transaction });
+    if (balaustre && balaustre.googleDocId) {
+      await deleteGoogleFile(balaustre.googleDocId);
+    }
+
+    // A deleção da sessão vai deletar o balaústre associado via CASCADE
+    await session.destroy({ transaction });
+
+    await transaction.commit(); // Confirma todas as operações
     res.status(204).send();
   } catch (error) {
+    await transaction.rollback(); // Desfaz tudo em caso de erro
     console.error("Erro em deleteSession:", error);
     res.status(500).json({
       message: "Erro ao deletar sessão.",

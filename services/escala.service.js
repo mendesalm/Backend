@@ -13,17 +13,44 @@ export const avancarEscalaSequencialEObterResponsavel = async (transaction) => {
     const { ResponsabilidadeJantar, LodgeMember, FamilyMember, sequelize } = db;
 
     // 1. Encontra o próximo da fila
-    const proximoNaEscala = await ResponsabilidadeJantar.findOne({
+    let proximoNaEscala = await ResponsabilidadeJantar.findOne({
       where: { status: "Ativo", sessaoDesignadaId: null },
       order: [["ordem", "ASC"]],
       transaction,
     });
 
+    // Se ninguém for encontrado, é o fim do ciclo. Tente reiniciar.
     if (!proximoNaEscala) {
-      console.log(
-        "Nenhum membro ativo encontrado na escala de jantares para avançar."
+      console.log("Fim do ciclo da escala. Tentando reiniciar...");
+
+      // Reseta todos os membros "Cumprido" de volta para "Ativo"
+      await ResponsabilidadeJantar.update(
+        { status: "Ativo" },
+        {
+          where: {
+            status: "Cumprido",
+            sessaoDesignadaId: null, // Apenas reinicia os da escala sequencial
+          },
+          transaction,
+        }
       );
-      return null;
+
+      console.log(
+        "Escala reiniciada. Buscando o próximo responsável novamente."
+      );
+
+      // Tenta encontrar o próximo da fila novamente após o reset
+      proximoNaEscala = await ResponsabilidadeJantar.findOne({
+        where: { status: "Ativo", sessaoDesignadaId: null },
+        order: [["ordem", "ASC"]],
+        transaction,
+      });
+
+      // Se ainda assim não encontrar ninguém, a escala está realmente vazia.
+      if (!proximoNaEscala) {
+        console.log("A escala está vazia. Nenhum responsável para designar.");
+        return null;
+      }
     }
 
     // Guarda o ID do responsável antes de qualquer alteração

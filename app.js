@@ -33,6 +33,8 @@ import menuItemsRoutes from "./routes/menu_item.routes.js";
 import templateRoutes from "./routes/template.routes.js";
 import balaustreRoutes from "./routes/balaustre.routes.js";
 import escalaRoutes from "./routes/escala.routes.js";
+import visitanteRoutes from "./routes/visitante.routes.js";
+
 // Importa o agendador de tarefas
 import { startScheduler } from "./scheduler.js";
 
@@ -99,6 +101,7 @@ const startServer = async () => {
     app.use("/api/templates", templateRoutes);
     app.use("/api/balaustres", balaustreRoutes);
     app.use("/api/escala", escalaRoutes);
+    app.use("/api/visitantes", visitanteRoutes);
     // Iniciar o servidor
     app.listen(PORT, () => {
       console.log(`Servidor backend rodando na porta ${PORT}`);
