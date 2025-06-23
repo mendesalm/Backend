@@ -58,6 +58,11 @@ const modelDefinitions = [
   { key: "FotoEvento", file: "foto_evento.model.js" },
   { key: "ResponsabilidadeJantar", file: "responsabilidade_jantar.model.js" },
   { key: "Configuracao", file: "configuracao.model.js" },
+  { key: "Legislacao", file: "legislacao.model.js" },
+  { key: "Documento", file: "documento.model.js" },
+  { key: "ArquivoDiverso", file: "arquivoDiverso.model.js" },
+  { key: "Classificado", file: "classificado.model.js" },
+  { key: "FotoClassificado", file: "fotoClassificado.model.js" },
 ];
 
 const loadModel = async (modelFileName) => {

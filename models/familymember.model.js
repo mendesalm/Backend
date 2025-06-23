@@ -37,6 +37,11 @@ export default (sequelize, DataTypes) => {
         validate: { isEmail: { msg: "Email do familiar inválido." } },
       },
       telefone: { type: DataTypes.STRING, allowNull: true },
+      falecido: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      },
     },
     {
       timestamps: true,

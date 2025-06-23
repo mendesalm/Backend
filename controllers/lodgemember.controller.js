@@ -69,12 +69,10 @@ export const getMyProfile = async (req, res) => {
       return res.status(404).json({ message: "Maçom não encontrado." });
     res.status(200).json(member);
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Erro ao buscar dados do perfil.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao buscar dados do perfil.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -112,6 +110,7 @@ export const updateMyProfile = async (req, res) => {
       "Ocupacao",
       "LocalTrabalho",
       "grauFilosofico",
+      "password",
     ];
     const updates = pick(req.body, allowedFields);
     await member.update(updates, { transaction: t });
@@ -126,21 +125,17 @@ export const updateMyProfile = async (req, res) => {
       resetPasswordExpires,
       ...memberResponse
     } = updatedMember.toJSON();
-    res
-      .status(200)
-      .json({
-        message: "Perfil atualizado com sucesso!",
-        member: memberResponse,
-      });
+    res.status(200).json({
+      message: "Perfil atualizado com sucesso!",
+      member: memberResponse,
+    });
   } catch (error) {
     await t.rollback();
     console.error("Erro ao atualizar perfil:", error);
-    res
-      .status(500)
-      .json({
-        message: "Erro ao atualizar perfil.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao atualizar perfil.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -235,12 +230,10 @@ export const getLodgeMemberById = async (req, res) => {
       return res.status(404).json({ message: "Maçom não encontrado." });
     res.status(200).json(member);
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Erro ao buscar maçom por ID.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao buscar maçom por ID.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -295,6 +288,7 @@ export const updateLodgeMemberById = async (req, res) => {
       "DataFiliacao",
       "DataRegularizacao",
       "grauFilosofico",
+      "password",
       "credencialAcesso",
       "statusCadastro",
     ];
@@ -315,12 +309,10 @@ export const updateLodgeMemberById = async (req, res) => {
       include: ["familiares"],
     });
     const { SenhaHash, ...memberResponse } = updatedMember.toJSON();
-    res
-      .status(200)
-      .json({
-        message: "Maçom atualizado com sucesso!",
-        member: memberResponse,
-      });
+    res.status(200).json({
+      message: "Maçom atualizado com sucesso!",
+      member: memberResponse,
+    });
   } catch (error) {
     await t.rollback();
     console.error(
@@ -339,12 +331,10 @@ export const updateLodgeMemberById = async (req, res) => {
         .status(400)
         .json({ message: "Erro de validação nos dados fornecidos.", errors });
     }
-    res
-      .status(500)
-      .json({
-        message: "Erro interno no servidor ao atualizar maçom.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro interno no servidor ao atualizar maçom.",
+      errorDetails: error.message,
+    });
   }
 };
 

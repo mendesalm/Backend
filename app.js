@@ -34,7 +34,10 @@ import templateRoutes from "./routes/template.routes.js";
 import balaustreRoutes from "./routes/balaustre.routes.js";
 import escalaRoutes from "./routes/escala.routes.js";
 import visitanteRoutes from "./routes/visitante.routes.js";
-
+import legislacaoRoutes from "./routes/legislacao.routes.js";
+import documentoRoutes from "./routes/documento.routes.js";
+import arquivoDiversoRoutes from "./routes/arquivoDiverso.routes.js";
+import classificadoRoutes from "./routes/classificado.routes.js";
 // Importa o agendador de tarefas
 import { startScheduler } from "./scheduler.js";
 
@@ -84,10 +87,13 @@ const startServer = async () => {
     app.use("/api/familymembers", familyMemberRoutes);
     app.use("/api/sessions", masonicSessionRoutes);
     app.use("/api/publicacoes", publicacaoRoutes);
+    app.use("/api/legislacoes", legislacaoRoutes);
     app.use("/api/harmonia", harmoniaRoutes);
     app.use("/api/biblioteca", bibliotecaRoutes);
     app.use("/api/cargoexercido", cargoExercidoRoutes);
     app.use("/api/comissoes", comissaoRoutes);
+    app.use("/api/documentos", documentoRoutes);
+    app.use("/api/arquivos-diversos", arquivoDiversoRoutes);
     app.use("/api/visitas", visitaRoutes);
     app.use("/api/financeiro", financeiroRoutes);
     app.use("/api/emprestimos", emprestimoRoutes);
@@ -102,6 +108,7 @@ const startServer = async () => {
     app.use("/api/balaustres", balaustreRoutes);
     app.use("/api/escala", escalaRoutes);
     app.use("/api/visitantes", visitanteRoutes);
+    app.use("/api/classificados", classificadoRoutes);
     // Iniciar o servidor
     app.listen(PORT, () => {
       console.log(`Servidor backend rodando na porta ${PORT}`);

@@ -1,5 +1,21 @@
 // backend/utils/validationHelpers.js
 
+import { validationResult } from "express-validator"; // 1. IMPORTAR A FUNÇÃO NECESSÁRIA
+
+// 2. A NOVA FUNÇÃO 'validate'
+/**
+ * Middleware para processar os resultados da validação do express-validator.
+ * Se houver erros, retorna uma resposta 400 com os detalhes.
+ * Se não houver erros, passa para o próximo middleware.
+ */
+export const validate = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+  next();
+};
+
 /**
  * Valida um número de CPF brasileiro.
  * Inclui a verificação dos dígitos verificadores.
@@ -7,12 +23,12 @@
  * @returns {boolean} - True se o CPF for válido, false caso contrário.
  */
 export const isValidCPF = (cpf) => {
-  if (typeof cpf !== 'string') return false;
-  cpf = cpf.replace(/[^\d]+/g, ''); // Remove caracteres não numéricos
+  if (typeof cpf !== "string") return false;
+  cpf = cpf.replace(/[^\d]+/g, ""); // Remove caracteres não numéricos
 
   if (cpf.length !== 11 || !!cpf.match(/(\d)\1{10}/)) return false; // Verifica tamanho e se todos os dígitos são iguais
 
-  cpf = cpf.split('').map(el => +el);
+  cpf = cpf.split("").map((el) => +el);
 
   const calculateDigit = (slice) => {
     let sum = 0;
@@ -38,10 +54,8 @@ export const isValidCPF = (cpf) => {
  * @returns {boolean} - True se o telefone for válido, false caso contrário.
  */
 export const isValidTelefone = (telefone) => {
-  if (typeof telefone !== 'string') return false;
+  if (typeof telefone !== "string") return false;
   // Regex para (XX) XXXXX-XXXX ou (XX) XXXX-XXXX
   const telefoneRegex = /^\(\d{2}\) \d{4,5}-\d{4}$/;
   return telefoneRegex.test(telefone);
 };
-
-// Você pode adicionar outras funções de validação helper aqui no futuro.
