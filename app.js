@@ -38,6 +38,9 @@ import legislacaoRoutes from "./routes/legislacao.routes.js";
 import documentoRoutes from "./routes/documento.routes.js";
 import arquivoDiversoRoutes from "./routes/arquivoDiverso.routes.js";
 import classificadoRoutes from "./routes/classificado.routes.js";
+import locacaoSalaoRoutes from "./routes/locacaoSalao.routes.js";
+import emprestimoPatrimonioRoutes from "./routes/emprestimoPatrimonio.routes.js";
+
 // Importa o agendador de tarefas
 import { startScheduler } from "./scheduler.js";
 
@@ -109,6 +112,8 @@ const startServer = async () => {
     app.use("/api/escala", escalaRoutes);
     app.use("/api/visitantes", visitanteRoutes);
     app.use("/api/classificados", classificadoRoutes);
+    app.use("/api/locacoes", locacaoSalaoRoutes);
+    app.use("/api/locacoes-patrimonio", emprestimoPatrimonioRoutes);
     // Iniciar o servidor
     app.listen(PORT, () => {
       console.log(`Servidor backend rodando na porta ${PORT}`);

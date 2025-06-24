@@ -19,6 +19,14 @@ export const sequelize = new Sequelize(dbName, dbUser, dbPass, {
   host: dbHost,
   dialect: dbDialect,
   logging: false, // Desativado para logs mais limpos, pode ativar para depuração
+  dialectOptions: {
+    // Garante que o driver do banco de dados use strings para datas
+    dateStrings: true,
+    // Força o driver a usar o timezone local em vez de UTC
+    typeCast: true,
+  },
+  // Define o timezone da aplicação para o horário de Brasília
+  timezone: "-03:00",
 });
 
 const db = {};
@@ -63,6 +71,12 @@ const modelDefinitions = [
   { key: "ArquivoDiverso", file: "arquivoDiverso.model.js" },
   { key: "Classificado", file: "classificado.model.js" },
   { key: "FotoClassificado", file: "fotoClassificado.model.js" },
+  { key: "LocacaoSalao", file: "locacaoSalao.model.js" },
+  { key: "EmprestimoPatrimonio", file: "emprestimoPatrimonio.model.js" },
+  {
+    key: "ItemEmprestimoPatrimonio",
+    file: "itemEmprestimoPatrimonio.model.js",
+  },
 ];
 
 const loadModel = async (modelFileName) => {
