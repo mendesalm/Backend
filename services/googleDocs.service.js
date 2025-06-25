@@ -162,3 +162,29 @@ export async function deleteGoogleFile(fileId) {
     );
   }
 }
+/**
+ * Cria um Cartão de Aniversário a partir de um template.
+ * @param {object} aniversarianteData - Dados para preencher no template (ex: { NOME_ANIVERSARIANTE, DATA_ANIVERSARIO }).
+ * @returns {Promise<object>} Objeto com o ID do Google Doc e o caminho relativo do PDF.
+ */
+export const createCartaoAniversarioFromTemplate = async (
+  aniversarianteData
+) => {
+  const TEMPLATE_ID = process.env.GOOGLE_DOCS_CARTAO_ANIVERSARIO_TEMPLATE_ID;
+  if (!TEMPLATE_ID) {
+    throw new Error(
+      "ID do template de Cartão de Aniversário não definido no .env"
+    );
+  }
+
+  const title = `Cartão de Aniversário - ${aniversarianteData.NOME_ANIVERSARIANTE}`;
+  const pdfSubfolder = "cartoes_aniversario"; // Pasta onde os PDFs serão salvos
+
+  // Reutiliza a sua função genérica e robusta
+  return createDocFromTemplate(
+    TEMPLATE_ID,
+    aniversarianteData,
+    title,
+    pdfSubfolder
+  );
+};

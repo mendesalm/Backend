@@ -1,13 +1,12 @@
 // services/notification.service.js
 import db from "../models/index.js";
 import { Op, fn, col } from "sequelize";
-import sendEmail from "../utils/emailSender.js";
+import { sendEmail } from "../utils/emailSender.js";
+import { gerarCartaoAniversarioPDF } from "./chanceler.service.js"; // Importamos o gerador de cartões
+import fs from "fs"; // Módulo File System para deletar o cartão após o envio
 
 /**
- * Substitui placeholders em um template string.
- * @param {string} template - O template com placeholders como {{chave}}.
- * @param {object} data - O objeto com os dados para substituição.
- * @returns {string} - O template com os valores preenchidos.
+ * Função auxiliar para substituir placeholders em um template.
  */
 function hydrateTemplate(template, data) {
   if (!template) return "";
@@ -23,96 +22,157 @@ function hydrateTemplate(template, data) {
 }
 
 /**
- * Dispara uma notificação por e-mail baseada em um gatilho.
- * @param {string} eventoGatilho - O nome do gatilho (ex: 'ANIVERSARIO_MEMBRO').
- * @param {object} destinatario - O objeto do membro que receberá a mensagem.
- * @param {object} contextData - Dados adicionais para o template (ex: { sessao: ... }).
+ * Função auxiliar para buscar todos os aniversariantes (membros e familiares) do dia.
+ * @returns {Promise<Array<object>>}
  */
-async function dispatchEmail(eventoGatilho, destinatario, contextData = {}) {
-  try {
-    const template = await db.MensagemTemplate.findOne({
-      where: { eventoGatilho, ativo: true },
-    });
-    if (!template) {
-      console.warn(
-        `[Notification] Template para gatilho '${eventoGatilho}' não encontrado ou inativo.`
-      );
-      return;
-    }
-
-    if (!destinatario.Email) {
-      console.warn(
-        `[Notification] Destinatário ${destinatario.NomeCompleto} não possui e-mail.`
-      );
-      return;
-    }
-
-    const data = { ...destinatario.toJSON(), ...contextData };
-    const assunto = hydrateTemplate(template.assunto, data);
-    const corpo = hydrateTemplate(template.corpo, data);
-
-    await sendEmail({
-      to: destinatario.Email,
-      subject: assunto,
-      html: corpo,
-      text: corpo.replace(/<[^>]*>?/gm, ""),
-    });
-
-    console.log(
-      `[Notification] E-mail do gatilho '${eventoGatilho}' enviado para ${destinatario.Email}.`
-    );
-  } catch (error) {
-    console.error(
-      `[Notification] Falha ao enviar e-mail para o gatilho ${eventoGatilho}:`,
-      error
-    );
-  }
-}
-
-// --- Funções de Lógica de Negócio ---
-
-export async function notificarAniversariantesDoDia() {
+const getAniversariantesDoDia = async () => {
   const hoje = new Date();
   const dia = hoje.getDate();
   const mes = hoje.getMonth() + 1;
 
-  try {
-    // CORREÇÃO: A estrutura do where foi consertada para o padrão Sequelize.
-    const whereMembros = {
-      Situacao: "Ativo",
-      [Op.and]: [
-        db.sequelize.where(fn("DAY", col("DataNascimento")), dia),
-        db.sequelize.where(fn("MONTH", col("DataNascimento")), mes),
-      ],
-    };
-    const membros = await db.LodgeMember.findAll({ where: whereMembros });
-    for (const membro of membros)
-      await dispatchEmail("ANIVERSARIO_MEMBRO", membro);
+  const whereClause = {
+    [Op.and]: [
+      db.sequelize.where(fn("DAY", col("DataNascimento")), dia),
+      db.sequelize.where(fn("MONTH", col("DataNascimento")), mes),
+    ],
+  };
 
-    const whereFamiliares = {
-      [Op.and]: [
-        db.sequelize.where(fn("DAY", col("dataNascimento")), dia),
-        db.sequelize.where(fn("MONTH", col("dataNascimento")), mes),
-      ],
-    };
-    const familiares = await db.FamilyMember.findAll({
-      where: whereFamiliares,
-      include: [
-        {
-          model: db.LodgeMember,
-          as: "membro",
-          where: { Situacao: "Ativo" },
-          required: true,
-        },
-      ],
-    });
-    for (const familiar of familiares)
-      await dispatchEmail("ANIVERSARIO_FAMILIAR", familiar.membro, {
-        familiar,
-      });
-  } catch (error) {
-    console.error("[Notify] Erro ao buscar aniversariantes:", error);
+  const membros = await db.LodgeMember.findAll({
+    where: { ...whereClause, Situacao: "Ativo" },
+  });
+
+  const familiares = await db.FamilyMember.findAll({
+    where: { ...whereClause, falecido: false },
+    include: [
+      {
+        model: db.LodgeMember,
+        as: "membro",
+        where: { Situacao: "Ativo" },
+        required: true,
+      },
+    ],
+  });
+
+  // Unifica e formata a lista
+  const listaMembros = membros.map((m) => ({
+    nome: m.NomeCompleto,
+    dataNascimento: m.DataNascimento,
+    emailParaNotificar: m.Email,
+    tipo: "Membro",
+    objetoOriginal: m.toJSON(), // Passa o objeto completo para o template
+  }));
+
+  const listaFamiliares = familiares.map((f) => ({
+    nome: f.nomeCompleto,
+    dataNascimento: f.dataNascimento,
+    emailParaNotificar: f.membro.Email,
+    tipo: "Familiar",
+    objetoOriginal: { ...f.toJSON(), membro: f.membro.toJSON() }, // Passa o familiar e o membro
+  }));
+
+  return [...listaMembros, ...listaFamiliares];
+};
+
+// --- Funções de Lógica de Negócio Exportadas ---
+
+/**
+ * REATORADO: Orquestra a geração de cartões e o envio de e-mails de aniversário.
+ * Esta função será chamada pelo scheduler.
+ */
+export async function notificarAniversariantesDoDiaComCartao() {
+  console.log(
+    "[Notify] Iniciando processo de envio de e-mails de aniversário com cartão..."
+  );
+
+  // 1. Busca o template de e-mail unificado
+  const template = await db.MensagemTemplate.findOne({
+    where: { eventoGatilho: "ANIVERSARIO_COM_CARTAO", ativo: true },
+  });
+  if (!template) {
+    console.error(
+      '[Notify] Template para gatilho "ANIVERSARIO_COM_CARTAO" não encontrado ou inativo. Abortando tarefa.'
+    );
+    return;
   }
+
+  // 2. Busca os aniversariantes do dia
+  const aniversariantes = await getAniversariantesDoDia();
+  if (aniversariantes.length === 0) {
+    console.log("[Notify] Nenhum aniversariante hoje. Tarefa concluída.");
+    return;
+  }
+
+  console.log(
+    `[Notify] Encontrados ${aniversariantes.length} aniversariante(s) hoje.`
+  );
+
+  // 3. Itera sobre cada aniversariante para gerar o cartão e enviar o e-mail
+  for (const aniversariante of aniversariantes) {
+    let caminhoPDF = null;
+    try {
+      if (!aniversariante.emailParaNotificar) {
+        console.warn(
+          `[Notify] Aniversariante ${aniversariante.nome} não possui e-mail para notificação.`
+        );
+        continue; // Pula para o próximo
+      }
+
+      console.log(`[Notify] Gerando cartão para: ${aniversariante.nome}`);
+      caminhoPDF = await gerarCartaoAniversarioPDF(aniversariante);
+
+      const dadosParaTemplate =
+        aniversariante.tipo === "Familiar"
+          ? {
+              ...aniversariante.objetoOriginal.membro,
+              familiar: aniversariante.objetoOriginal,
+            }
+          : aniversariante.objetoOriginal;
+
+      const assunto = hydrateTemplate(template.assunto, dadosParaTemplate);
+      const corpo = hydrateTemplate(template.corpo, dadosParaTemplate);
+
+      console.log(
+        `[Notify] Enviando e-mail para ${aniversariante.emailParaNotificar}`
+      );
+      await sendEmail({
+        to: aniversariante.emailParaNotificar,
+        subject: assunto,
+        html: corpo,
+        attachments: [
+          {
+            filename: `Cartao_Aniversario_${aniversariante.nome.replace(
+              /\s/g,
+              "_"
+            )}.pdf`,
+            path: caminhoPDF,
+            contentType: "application/pdf",
+          },
+        ],
+      });
+      console.log(
+        `[Notify] E-mail para ${aniversariante.nome} enviado com sucesso.`
+      );
+    } catch (error) {
+      console.error(
+        `[Notify] Falha no processo para o aniversariante ${aniversariante.nome}:`,
+        error
+      );
+    } finally {
+      // Limpa o ficheiro PDF gerado, independentemente de sucesso ou falha
+      if (caminhoPDF) {
+        fs.unlink(caminhoPDF, (err) => {
+          if (err)
+            console.error(
+              `[Notify] Erro ao deletar o ficheiro temporário ${caminhoPDF}:`,
+              err
+            );
+        });
+      }
+    }
+  }
+  console.log(
+    "[Notify] Processo de envio de e-mails de aniversário finalizado."
+  );
 }
 
 export async function notificarAniversariosMaconicos() {

@@ -1,40 +1,67 @@
 // routes/lodgemember.routes.js
-import express from 'express';
-import * as lodgeMemberController from '../controllers/lodgemember.controller.js';
-import authMiddleware from '../middlewares/auth.middleware.js';
-import { authorizeByFeature } from '../middlewares/authorizeByFeature.middleware.js';
-import {
-  updateMyProfileRules,
-  createLodgeMemberRules,
-  updateLodgeMemberByAdminRules,
-  lodgeMemberIdParamRule,
-  handleValidationErrors
-} from '../validators/lodgemember.validator.js';
+import express from "express";
+import authMiddleware from "../middlewares/auth.middleware.js";
+import { authorizeByFeature } from "../middlewares/authorizeByFeature.middleware.js";
+// 1. Importar o novo middleware de upload
+import { uploadFotoPerfil } from "../middlewares/upload.middleware.js";
 
-// Importa as rotas aninhadas
-import cargoExercidoRoutes from './cargoexercido.routes.js';
-import condecoracaoRoutes from './condecoracao.routes.js';
+import {
+  getMyProfile,
+  updateMyProfile,
+  createLodgeMember,
+  getAllLodgeMembers,
+  getLodgeMemberById,
+  updateLodgeMemberById,
+  deleteLodgeMemberById,
+} from "../controllers/lodgemember.controller.js";
 
 const router = express.Router();
-router.use(authMiddleware);
 
-// --- Rotas de Auto-serviço (/me) ---
-// ... (código existente para /me) ...
-router.get('/me', authorizeByFeature('visualizarProprioPerfil'), lodgeMemberController.getMyProfile);
-router.put('/me', authorizeByFeature('editarProprioPerfil'), updateMyProfileRules(), handleValidationErrors, lodgeMemberController.updateMyProfile);
+// --- Rotas de Perfil Pessoal ---
+router.get("/me", authMiddleware, getMyProfile);
 
-// --- Rotas Administrativas ---
-// ... (código existente para as rotas / e /:id) ...
-router.get('/', authorizeByFeature('listarTodosOsMembros'), lodgeMemberController.getAllLodgeMembers);
-router.post('/', authorizeByFeature('criarNovoMembroPeloAdmin'), createLodgeMemberRules(), handleValidationErrors, lodgeMemberController.createLodgeMember);
-router.get('/:id', authorizeByFeature('visualizarDetalhesDeMembroPorAdmin'), lodgeMemberIdParamRule(), handleValidationErrors, lodgeMemberController.getLodgeMemberById);
-router.put('/:id', authorizeByFeature('editarMembroPorAdmin'), updateLodgeMemberByAdminRules(), handleValidationErrors, lodgeMemberController.updateLodgeMemberById);
-router.delete('/:id', authorizeByFeature('deletarMembroPorAdmin'), lodgeMemberIdParamRule(), handleValidationErrors, lodgeMemberController.deleteLodgeMemberById);
+// CORREÇÃO APLICADA AQUI: Adicionado o middleware de upload
+router.put(
+  "/me",
+  authMiddleware,
+  uploadFotoPerfil.single("FotoPessoal"), // 2. Aplicar o multer
+  updateMyProfile
+);
 
+// --- Rotas de Gestão (Admin) ---
+router.get(
+  "/",
+  authMiddleware,
+  authorizeByFeature("listarTodosMembros"),
+  getAllLodgeMembers
+);
+router.post(
+  "/",
+  authMiddleware,
+  authorizeByFeature("criarNovoMembro"),
+  createLodgeMember
+);
+router.get(
+  "/:id",
+  authMiddleware,
+  authorizeByFeature("visualizarQualquerMembro"),
+  getLodgeMemberById
+);
 
-// --- Montar Rotas Aninhadas ---
-router.use('/:lodgeMemberId/cargos', cargoExercidoRoutes);
-router.use('/:lodgeMemberId/condecoracoes', condecoracaoRoutes);
-// A rota para empréstimos de membro foi movida para o app.js principal para simplificar
+// CORREÇÃO APLICADA AQUI: Adicionado o middleware de upload
+router.put(
+  "/:id",
+  authMiddleware,
+  authorizeByFeature("editarQualquerMembro"),
+  uploadFotoPerfil.single("FotoPessoal"), // 3. Aplicar o multer
+  updateLodgeMemberById
+);
+
+router.delete(
+  "/:id",
+  authMiddleware,
+  authorizeByFeature("deletarQualquerMembro"),
+  deleteLodgeMemberById
+);
 
 export default router;

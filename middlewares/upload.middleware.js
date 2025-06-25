@@ -55,11 +55,6 @@ export const uploadAta = multer({
   fileFilter: createFileFilter(/pdf|doc|docx/),
 });
 
-export const uploadLegislacao = multer({
-  storage: createStorage("legislacoes"), // Os arquivos serão salvos na pasta 'uploads/legislacoes/'
-  limits: { fileSize: 1024 * 1024 * 20 }, // Limite de 20MB (ajuste se necessário)
-  fileFilter: createFileFilter(/pdf|doc|docx/), // Permitir apenas arquivos de documento
-});
 // --- Configuração para Upload de Publicações ---
 export const uploadPublicacao = multer({
   storage: createStorage("publicacoes"),
@@ -81,6 +76,49 @@ export const uploadAudio = multer({
   fileFilter: createFileFilter(/mpeg|mp3|wav|aac|ogg|m4a|flac|wma/),
 });
 
+// --- INÍCIO DAS ADIÇÕES ---
+
+// --- Configuração para Upload de Fotos de Perfil ---
+export const uploadFotoPerfil = multer({
+  storage: createStorage("fotos_perfil"),
+  limits: { fileSize: 1024 * 1024 * 5 }, // 5MB
+  fileFilter: createFileFilter(/jpeg|jpg|png|gif|webp/),
+});
+
+// --- Configuração para Upload de Legislações ---
+export const uploadLegislacao = multer({
+  storage: createStorage("legislacoes"),
+  limits: { fileSize: 1024 * 1024 * 20 },
+  fileFilter: createFileFilter(/pdf|doc|docx/),
+});
+
+// --- Configuração para Upload de Documentos ---
+export const uploadDocumento = multer({
+  storage: createStorage("documentos"),
+  limits: { fileSize: 1024 * 1024 * 20 },
+  fileFilter: createFileFilter(
+    /pdf|doc|docx|xls|xlsx|ppt|pptx|txt|jpeg|jpg|png|gif/
+  ),
+});
+
+// --- Configuração para Upload de Arquivos Diversos ---
+export const uploadArquivoDiverso = multer({
+  storage: createStorage("arquivos_diversos"),
+  limits: { fileSize: 1024 * 1024 * 25 },
+  fileFilter: createFileFilter(
+    /jpeg|jpg|png|gif|webp|pdf|doc|docx|xls|xlsx|ppt|pptx|txt/
+  ),
+});
+
+// --- Configuração para Upload de Fotos de Classificados ---
+export const uploadFotoClassificado = multer({
+  storage: createStorage("classificados"),
+  limits: { fileSize: 1024 * 1024 * 5 },
+  fileFilter: createFileFilter(/jpeg|jpg|png|gif|webp/),
+});
+
+// --- FIM DAS ADIÇÕES ---
+
 // --- Configuração para Upload de Fotos de Eventos ---
 const fotoEventoDiskStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -92,7 +130,6 @@ const fotoEventoDiskStorage = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    // Adiciona o ID do evento ao nome do ficheiro para fácil identificação
     cb(
       null,
       `evento-${req.params.eventoId}-${uniqueSuffix}${path.extname(
@@ -101,28 +138,9 @@ const fotoEventoDiskStorage = multer.diskStorage({
     );
   },
 });
-export const uploadDocumento = multer({
-  storage: createStorage("documentos"), // Salvará em 'uploads/documentos/'
-  limits: { fileSize: 1024 * 1024 * 20 }, // Limite de 20MB
-  fileFilter: createFileFilter(
-    /pdf|doc|docx|xls|xlsx|ppt|pptx|txt|jpeg|jpg|png|gif/
-  ), // Filtro mais abrangente
-});
+
 export const uploadFotosEvento = multer({
   storage: fotoEventoDiskStorage,
-  limits: { fileSize: 1024 * 1024 * 3 }, // Limite de 1MB por foto
+  limits: { fileSize: 1024 * 1024 * 5 }, // Limite de 5MB por foto
   fileFilter: createFileFilter(/jpeg|jpg|png|gif|webp/),
-});
-export const uploadArquivoDiverso = multer({
-  storage: createStorage("arquivos_diversos"), // Salvará em 'uploads/arquivos_diversos/'
-  limits: { fileSize: 1024 * 1024 * 25 }, // Limite de 25MB
-  // Filtro abrangente para imagens, planilhas, docs e pdf
-  fileFilter: createFileFilter(
-    /jpeg|jpg|png|gif|webp|cdr|ai|pdf|doc|docx|xls|xlsx|ppt|pptx|txt/
-  ),
-});
-export const uploadFotoClassificado = multer({
-  storage: createStorage("classificados"), // Os arquivos serão salvos na pasta 'uploads/classificados/'
-  limits: { fileSize: 1024 * 1024 * 2 }, // Limite de 2MB por foto (ajuste se necessário)
-  fileFilter: createFileFilter(/jpeg|jpg|png|gif|webp/), // Permitir apenas os principais formatos de imagem
 });

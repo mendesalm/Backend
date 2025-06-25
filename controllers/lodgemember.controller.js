@@ -1,14 +1,11 @@
+// backend/controllers/lodgemember.controller.js
 import db from "../models/index.js";
 import { pick } from "../utils/pick.js";
+import path from "path"; // CORREÇÃO: Importa o módulo 'path' do Node.js
 
 // Função auxiliar para gerir familiares numa transação
 const manageFamiliares = async (lodgeMemberId, familiaresData, transaction) => {
-  // ... (código existente, sem alterações)
-  console.log("[UPDATE-DEBUG] Iniciando manageFamiliares...");
   if (!familiaresData || !Array.isArray(familiaresData)) {
-    console.log(
-      "[UPDATE-DEBUG] Nenhum dado de familiares válido para processar."
-    );
     return;
   }
   const existingFamiliares = await db.FamilyMember.findAll({
@@ -18,22 +15,16 @@ const manageFamiliares = async (lodgeMemberId, familiaresData, transaction) => {
   const incomingIds = new Set(
     familiaresData.filter((f) => f.id).map((f) => f.id)
   );
-  console.log(
-    "[UPDATE-DEBUG] IDs de familiares recebidos:",
-    Array.from(incomingIds)
-  );
+
   for (const existing of existingFamiliares) {
     if (!incomingIds.has(existing.id)) {
-      console.log(`[UPDATE-DEBUG] A deletar familiar com ID: ${existing.id}`);
       await existing.destroy({ transaction });
     }
   }
+
   for (const familiarData of familiaresData) {
     const data = { ...familiarData, lodgeMemberId };
     if (familiarData.id) {
-      console.log(
-        `[UPDATE-DEBUG] A atualizar familiar com ID: ${familiarData.id}`
-      );
       const familiar = await db.FamilyMember.findByPk(familiarData.id, {
         transaction,
       });
@@ -41,34 +32,28 @@ const manageFamiliares = async (lodgeMemberId, familiaresData, transaction) => {
         await familiar.update(data, { transaction });
       }
     } else {
-      console.log("[UPDATE-DEBUG] A criar novo familiar:", data);
       await db.FamilyMember.create(data, { transaction });
     }
   }
-  console.log("[UPDATE-DEBUG] manageFamiliares concluído.");
 };
 
-// Obter o perfil do maçom autenticado
+/**
+ * Obtém o perfil do maçom autenticado.
+ */
 export const getMyProfile = async (req, res) => {
   try {
     const member = await db.LodgeMember.findByPk(req.user.id, {
       attributes: {
-        exclude: ["SenhaHash", "resetPasswordToken", "resetPasswordExpires"],
+        exclude: ["password", "resetPasswordToken", "resetPasswordExpires"],
       },
-      include: [
-        { model: db.FamilyMember, as: "familiares", required: false },
-        {
-          model: db.CargoExercido,
-          as: "cargos",
-          order: [["dataInicio", "DESC"]],
-          required: false,
-        },
-      ],
+      include: [{ model: db.FamilyMember, as: "familiares", required: false }],
     });
-    if (!member)
+    if (!member) {
       return res.status(404).json({ message: "Maçom não encontrado." });
-    res.status(200).json(member);
+    }
+    res.status(200).json(member.toJSON());
   } catch (error) {
+    console.error("Erro ao buscar dados do perfil:", error);
     res.status(500).json({
       message: "Erro ao buscar dados do perfil.",
       errorDetails: error.message,
@@ -76,7 +61,9 @@ export const getMyProfile = async (req, res) => {
   }
 };
 
-// Atualizar o perfil do maçom autenticado
+/**
+ * Atualiza o perfil do maçom autenticado.
+ */
 export const updateMyProfile = async (req, res) => {
   const t = await db.sequelize.transaction();
   try {
@@ -112,22 +99,47 @@ export const updateMyProfile = async (req, res) => {
       "grauFilosofico",
       "password",
     ];
+
     const updates = pick(req.body, allowedFields);
+
+    if (req.file) {
+      updates.FotoPessoal_Caminho = path
+        .join("uploads", "fotos_perfil", req.file.filename)
+        .replace(/\\/g, "/");
+    }
+
     await member.update(updates, { transaction: t });
-    await manageFamiliares(req.user.id, req.body.familiares, t);
+
+    let familiaresParsed = [];
+    if (req.body && req.body.familiares) {
+      if (typeof req.body.familiares === "string") {
+        try {
+          familiaresParsed = JSON.parse(req.body.familiares);
+        } catch (e) {
+          await t.rollback();
+          return res
+            .status(400)
+            .json({
+              message: "O formato dos dados dos familiares é inválido.",
+            });
+        }
+      } else if (Array.isArray(req.body.familiares)) {
+        familiaresParsed = req.body.familiares;
+      }
+    }
+
+    await manageFamiliares(req.user.id, familiaresParsed, t);
+
     await t.commit();
+
     const updatedMember = await db.LodgeMember.findByPk(req.user.id, {
       include: ["familiares"],
+      attributes: { exclude: ["password"] },
     });
-    const {
-      SenhaHash,
-      resetPasswordToken,
-      resetPasswordExpires,
-      ...memberResponse
-    } = updatedMember.toJSON();
+
     res.status(200).json({
       message: "Perfil atualizado com sucesso!",
-      member: memberResponse,
+      member: updatedMember.toJSON(),
     });
   } catch (error) {
     await t.rollback();
@@ -157,7 +169,7 @@ export const createLodgeMember = async (req, res) => {
       await db.FamilyMember.bulkCreate(familiaresData, { transaction: t });
     }
     await t.commit();
-    const { SenhaHash, ...memberResponse } = newMember.toJSON();
+    const { password, ...memberResponse } = newMember.toJSON();
     res.status(201).json(memberResponse);
   } catch (error) {
     await t.rollback();
@@ -168,10 +180,6 @@ export const createLodgeMember = async (req, res) => {
   }
 };
 
-/**
- * REVERTIDO: Retorna um array simples de membros, sem paginação.
- * Mantém a funcionalidade de busca e filtro por status.
- */
 export const getAllLodgeMembers = async (req, res) => {
   try {
     const { search, statusCadastro } = req.query;
@@ -191,19 +199,11 @@ export const getAllLodgeMembers = async (req, res) => {
 
     const members = await db.LodgeMember.findAll({
       where: whereClause,
-      attributes: {
-        exclude: [
-          "SenhaHash",
-          "resetPasswordToken",
-          "resetPasswordExpires",
-          "emailVerificationToken",
-          "emailVerificationExpires",
-        ],
-      },
+      attributes: { exclude: ["password"] },
       order: [["NomeCompleto", "ASC"]],
     });
 
-    res.status(200).json(members); // Retorna o array diretamente
+    res.status(200).json(members);
   } catch (error) {
     res
       .status(500)
@@ -211,25 +211,22 @@ export const getAllLodgeMembers = async (req, res) => {
   }
 };
 
+/**
+ * Obtém os dados de um membro específico por ID.
+ */
 export const getLodgeMemberById = async (req, res) => {
   try {
     const memberId = parseInt(req.params.id, 10);
     const member = await db.LodgeMember.findByPk(memberId, {
-      attributes: { exclude: ["SenhaHash"] },
-      include: [
-        { model: db.FamilyMember, as: "familiares", required: false },
-        {
-          model: db.CargoExercido,
-          as: "cargos",
-          required: false,
-          order: [["dataInicio", "DESC"]],
-        },
-      ],
+      attributes: { exclude: ["password"] },
+      include: [{ model: db.FamilyMember, as: "familiares", required: false }],
     });
     if (!member)
       return res.status(404).json({ message: "Maçom não encontrado." });
-    res.status(200).json(member);
+
+    res.status(200).json(member.toJSON());
   } catch (error) {
+    console.error("Erro ao buscar maçom por ID:", error);
     res.status(500).json({
       message: "Erro ao buscar maçom por ID.",
       errorDetails: error.message,
@@ -237,27 +234,18 @@ export const getLodgeMemberById = async (req, res) => {
   }
 };
 
+/**
+ * Atualiza os dados de um membro por ID (Admin).
+ */
 export const updateLodgeMemberById = async (req, res) => {
-  // ... (código existente, sem alterações)
-  console.log(
-    `\n[UPDATE-DEBUG] ----- INICIANDO ATUALIZAÇÃO PARA O MEMBRO ID: ${req.params.id} -----`
-  );
   const t = await db.sequelize.transaction();
   try {
     const memberId = parseInt(req.params.id, 10);
-    console.log(
-      "[UPDATE-DEBUG] Corpo da requisição recebido:",
-      JSON.stringify(req.body, null, 2)
-    );
     const member = await db.LodgeMember.findByPk(memberId, { transaction: t });
     if (!member) {
       await t.rollback();
-      console.log(
-        "[UPDATE-DEBUG] ERRO: Membro não encontrado. Rollback executado."
-      );
       return res.status(404).json({ message: "Maçom não encontrado." });
     }
-    console.log("[UPDATE-DEBUG] Membro encontrado no banco de dados.");
     const allowedAdminFields = [
       "NomeCompleto",
       "Email",
@@ -291,46 +279,53 @@ export const updateLodgeMemberById = async (req, res) => {
       "password",
       "credencialAcesso",
       "statusCadastro",
+      "FotoPessoal_Caminho",
     ];
-    const memberUpdates = pick(req.body, allowedAdminFields);
-    console.log(
-      "[UPDATE-DEBUG] Campos do membro a serem atualizados:",
-      memberUpdates
-    );
+
+    let memberUpdates = pick(req.body, allowedAdminFields);
+
+    if (req.file) {
+      memberUpdates.FotoPessoal_Caminho = path
+        .join("uploads", "fotos_perfil", req.file.filename)
+        .replace(/\\/g, "/");
+    }
+
+    let familiaresParsed = [];
+    if (req.body && req.body.familiares) {
+      if (typeof req.body.familiares === "string") {
+        try {
+          familiaresParsed = JSON.parse(req.body.familiares);
+        } catch (e) {
+          await t.rollback();
+          return res
+            .status(400)
+            .json({
+              message: "O formato dos dados dos familiares é inválido.",
+            });
+        }
+      } else if (Array.isArray(req.body.familiares)) {
+        familiaresParsed = req.body.familiares;
+      }
+    }
+
     await member.update(memberUpdates, { transaction: t });
-    console.log("[UPDATE-DEBUG] Dados do membro principal atualizados.");
-    await manageFamiliares(memberId, req.body.familiares, t);
-    console.log("[UPDATE-DEBUG] A executar commit da transação...");
+
+    await manageFamiliares(memberId, familiaresParsed, t);
+
     await t.commit();
-    console.log(
-      "[UPDATE-DEBUG] Transação confirmada com sucesso (commit executado)."
-    );
+
     const updatedMember = await db.LodgeMember.findByPk(memberId, {
       include: ["familiares"],
+      attributes: { exclude: ["password"] },
     });
-    const { SenhaHash, ...memberResponse } = updatedMember.toJSON();
+
     res.status(200).json({
       message: "Maçom atualizado com sucesso!",
-      member: memberResponse,
+      member: updatedMember.toJSON(),
     });
   } catch (error) {
     await t.rollback();
-    console.error(
-      "\n[UPDATE-DEBUG] OCORREU UM ERRO! Rollback executado. Detalhes do erro:",
-      error
-    );
-    if (
-      error.name === "SequelizeValidationError" ||
-      error.name === "SequelizeUniqueConstraintError"
-    ) {
-      const errors = error.errors.map((e) => ({
-        campo: e.path,
-        mensagem: e.message,
-      }));
-      return res
-        .status(400)
-        .json({ message: "Erro de validação nos dados fornecidos.", errors });
-    }
+    console.error("Erro ao atualizar maçom por ID:", error);
     res.status(500).json({
       message: "Erro interno no servidor ao atualizar maçom.",
       errorDetails: error.message,
@@ -344,9 +339,11 @@ export const deleteLodgeMemberById = async (req, res) => {
     const member = await db.LodgeMember.findByPk(memberId);
     if (!member)
       return res.status(404).json({ message: "Maçom não encontrado." });
+
     await member.destroy();
     res.status(200).json({ message: "Maçom deletado com sucesso." });
   } catch (error) {
+    console.error("Erro ao deletar maçom:", error);
     res
       .status(500)
       .json({ message: "Erro ao deletar maçom.", errorDetails: error.message });

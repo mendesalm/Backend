@@ -1,99 +1,50 @@
-// backend/utils/emailSender.js
-import nodemailer from 'nodemailer';
-import dotenv from 'dotenv';
-import path from 'path';
-import { fileURLToPath } from 'url';
+// utils/emailSender.js
+import nodemailer from "nodemailer";
+import dotenv from "dotenv";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+dotenv.config();
 
 /**
- * Cria uma instância do transporter do Nodemailer.
- * Tenta usar as credenciais do .env para SMTP.
- * Se não estiverem configuradas e NODE_ENV for 'development', usa Ethereal.email para teste.
- * @returns {Promise<nodemailer.Transporter>}
+ * Configura e cria um "transporter" do Nodemailer usando as credenciais do Gmail
+ * definidas nas variáveis de ambiente.
  */
-async function createTransporter() {
-    const useRealSmtp = process.env.EMAIL_HOST && process.env.EMAIL_USER && process.env.EMAIL_PASS;
-
-    if (useRealSmtp) {
-        console.log('Usando configuração SMTP real para envio de emails.');
-        return nodemailer.createTransport({
-            host: process.env.EMAIL_HOST,
-            port: parseInt(process.env.EMAIL_PORT || "587", 10),
-            secure: process.env.EMAIL_SECURE === 'true',
-            auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS,
-            },
-        });
-    } else if (process.env.NODE_ENV === 'development') {
-        console.warn('Variáveis de ambiente para email não configuradas. Usando Ethereal.email para desenvolvimento.');
-        try {
-            let testAccount = await nodemailer.createTestAccount();
-            console.log('--------------------------------------------------------------------------------------');
-            console.log('CONTA DE TESTE ETHEREAL CRIADA:');
-            console.log(`Usuário Ethereal: ${testAccount.user}`);
-            console.log(`Senha Ethereal: ${testAccount.pass}`);
-            console.log('Uma URL de PREVIEW será exibida no console após o envio de cada email de teste.');
-            console.log('--------------------------------------------------------------------------------------');
-
-            return nodemailer.createTransport({
-                host: 'smtp.ethereal.email',
-                port: 587,
-                secure: false,
-                auth: {
-                    user: testAccount.user,
-                    pass: testAccount.pass,
-                },
-            });
-        } catch (etherealError) {
-            console.error('Falha ao criar conta de teste Ethereal:', etherealError);
-            throw new Error('Falha ao configurar o serviço de email de desenvolvimento (Ethereal).');
-        }
-    } else {
-        console.error('ERRO CRÍTICO: Configuração de email não encontrada para o ambiente de produção.');
-        throw new Error('Serviço de email não configurado para produção.');
-    }
-}
+const transporter = nodemailer.createTransport({
+  host: process.env.EMAIL_HOST,
+  port: parseInt(process.env.EMAIL_PORT, 10),
+  secure: true, // `true` para a porta 465, `false` para outras como a 587
+  auth: {
+    user: process.env.EMAIL_USER, // O seu e-mail do Gmail
+    pass: process.env.EMAIL_PASS, // A sua senha de app de 16 dígitos
+  },
+});
 
 /**
- * Envia um email.
- * @param {Object} mailDetails - Detalhes do email.
- * @param {string} mailDetails.to - Destinatário(s) do email.
- * @param {string} mailDetails.subject - Assunto do email.
- * @param {string} mailDetails.text - Corpo do email em texto puro.
- * @param {string} mailDetails.html - Corpo do email em HTML.
- * @returns {Promise<Object>} - Informações sobre o email enviado.
+ * Função principal para enviar um e-mail.
+ * @param {object} mailOptions - Objeto com as opções de e-mail.
+ * @param {string} mailOptions.to - O destinatário ou uma lista de destinatários separados por vírgula.
+ * @param {string} mailOptions.subject - O assunto do e-mail.
+ * @param {string} mailOptions.html - O corpo do e-mail em formato HTML.
+ * @param {Array<object>} [mailOptions.attachments] - Um array opcional de anexos.
  */
-const sendEmail = async ({ to, subject, text, html }) => {
-    try {
-        const transporter = await createTransporter();
+export const sendEmail = async (mailOptions) => {
+  try {
+    // Define opções padrão, como o remetente
+    const options = {
+      from: `"<span class="math-inline">\{process\.env\.APP\_NAME \|\| 'SysJPJ'\}" <</span>{process.env.EMAIL_USER}>`,
+      ...mailOptions,
+    };
 
-        const mailOptions = {
-            from: process.env.EMAIL_FROM || `"SysJPJ" <no-reply@sysjpj.com>`,
-            to: to,
-            subject: subject,
-            text: text,
-            html: html,
-        };
-
-        let info = await transporter.sendMail(mailOptions);
-        console.log('Email enviado com sucesso: %s', info.messageId);
-
-        if (transporter.options && transporter.options.host === 'smtp.ethereal.email') {
-            const previewUrl = nodemailer.getTestMessageUrl(info);
-            if (previewUrl) {
-                console.log('Preview URL (Ethereal): %s', previewUrl);
-            }
-        }
-        return info;
-    } catch (error) {
-        console.error('Erro detalhado ao enviar email:', error);
-        throw new Error(`Falha no serviço de envio de email. Detalhes: ${error.message}`);
-    }
+    // Envia o e-mail
+    const info = await transporter.sendMail(options);
+    console.log(`[EmailSender] E-mail enviado com sucesso: ${info.messageId}`);
+    return info;
+  } catch (error) {
+    console.error("[EmailSender] Falha ao enviar o e-mail:", error);
+    // Em um ambiente de produção, você poderia lançar o erro
+    // ou usar um sistema de logging mais robusto.
+    throw new Error("Não foi possível enviar o e-mail.");
+  }
 };
 
+// Exportação padrão para compatibilidade, se necessário
 export default sendEmail;
