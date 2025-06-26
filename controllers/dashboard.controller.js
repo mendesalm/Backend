@@ -1,9 +1,9 @@
-// controllers/dashboard.controller.js
+// backend/controllers/dashboard.controller.js
 import db from "../models/index.js";
 const { Sequelize } = db;
 const { Op } = Sequelize;
 
-// --- Funções Auxiliares ---
+// --- Funções Auxiliares Refatoradas ---
 
 const getResumoFinanceiroMesAtual = async () => {
   const hoje = new Date();
@@ -44,8 +44,8 @@ const getProximosAniversariantes = async (dias = 30) => {
   dataLimite.setDate(hoje.getDate() + dias);
 
   const membros = await db.LodgeMember.findAll({
-    where: { Situacao: "Ativo" },
-    attributes: ["NomeCompleto", "DataNascimento"],
+    where: { Situacao: { [Op.notIn]: ["Inativo", "Irregular"] } },
+    attributes: ["NomeCompleto", "DataNascimento", "Situacao"],
   });
 
   const familiares = await db.FamilyMember.findAll({
@@ -54,7 +54,7 @@ const getProximosAniversariantes = async (dias = 30) => {
         model: db.LodgeMember,
         as: "membro",
         attributes: [],
-        where: { Situacao: "Ativo" },
+        where: { Situacao: { [Op.notIn]: ["Inativo", "Irregular"] } },
         required: true,
       },
     ],
@@ -66,11 +66,13 @@ const getProximosAniversariantes = async (dias = 30) => {
       nome: m.NomeCompleto,
       data: m.DataNascimento,
       tipo: "Membro",
+      situacao: m.Situacao,
     })),
     ...familiares.map((f) => ({
       nome: f.nomeCompleto,
       data: f.dataNascimento,
       tipo: `Familiar (${f.parentesco})`,
+      situacao: "N/A",
     })),
   ];
 
@@ -110,6 +112,7 @@ const getProximosAniversariantes = async (dias = 30) => {
       month: "2-digit",
     }),
     tipo: pessoa.tipo,
+    situacao: pessoa.situacao,
   }));
 };
 
@@ -149,7 +152,9 @@ export const getDashboardData = async (req, res) => {
     if (["Admin", "Webmaster", "Diretoria"].includes(credencialAcesso)) {
       const [resumoFinanceiro, totalMembros] = await Promise.all([
         getResumoFinanceiroMesAtual(),
-        db.LodgeMember.count({ where: { Situacao: "Ativo" } }),
+        db.LodgeMember.count({
+          where: { Situacao: { [Op.notIn]: ["Inativo", "Irregular"] } },
+        }),
       ]);
       dashboardData = {
         tipo: "admin",
@@ -177,6 +182,9 @@ export const getDashboardData = async (req, res) => {
   }
 };
 
+/**
+ * Controller para o calendário unificado, agora incluindo aniversários.
+ */
 export const getCalendarioUnificado = async (req, res) => {
   const { ano, mes } = req.query;
   try {
@@ -190,7 +198,7 @@ export const getCalendarioUnificado = async (req, res) => {
     const dataInicio = new Date(numAno, numMes - 1, 1);
     const dataFim = new Date(numAno, numMes, 0, 23, 59, 59);
 
-    // Buscas em paralelo
+    // --- Buscas em Paralelo ---
     const sessoesPromise = db.MasonicSession.findAll({
       where: { DataSessao: { [Op.between]: [dataInicio, dataFim] } },
     });
@@ -204,34 +212,45 @@ export const getCalendarioUnificado = async (req, res) => {
       where: { dataHoraInicio: { [Op.between]: [dataInicio, dataFim] } },
     });
 
-    const [sessoes, locacoes, eventosSociais] = await Promise.all([
+    // Nova busca por todos os membros para verificar aniversários
+    const membrosPromise = db.LodgeMember.findAll({
+      where: { Situacao: { [Op.notIn]: ["Inativo", "Irregular"] } },
+      attributes: [
+        "NomeCompleto",
+        "DataNascimento",
+        "DataIniciacao",
+        "DataElevacao",
+        "DataExaltacao",
+        "Situacao",
+      ],
+      include: [
+        {
+          model: db.FamilyMember,
+          as: "familiares",
+          where: { falecido: false },
+          required: false,
+          attributes: ["nomeCompleto", "dataNascimento", "parentesco"],
+        },
+      ],
+    });
+
+    const [sessoes, locacoes, eventosSociais, membros] = await Promise.all([
       sessoesPromise,
       locacoesPromise,
       eventosPromise,
+      membrosPromise,
     ]);
 
+    // --- Mapeamento dos Eventos ---
     const eventosSessao = sessoes
       .filter((s) => s.dataSessao)
-      .map((s) => {
-        // ** CORREÇÃO DE FUSO HORÁRIO APLICADA AQUI **
-        // Transforma a data DATEONLY em uma string AAAA-MM-DD para evitar conversões de fuso horário.
-        const dataObj = new Date(s.dataSessao);
-        const anoSessao = dataObj.getUTCFullYear();
-        const mesSessao = String(dataObj.getUTCMonth() + 1).padStart(2, "0");
-        const diaSessao = String(dataObj.getUTCDate()).padStart(2, "0");
-        const dataFormatada = `${anoSessao}-${mesSessao}-${diaSessao}`;
-
-        return {
-          id: `sessao-${s.id}`,
-          titulo: `Sessão ${s.tipoSessao || "a Definir"} no grau de ${
-            s.subtipoSessao || ""
-          }`.trim(),
-          data: `${dataFormatada}T19:00:00`, // Adiciona uma hora fixa para o frontend
-          tipo: "Sessão",
-          status: "Confirmado",
-        };
-      });
-
+      .map((s) => ({
+        id: `sessao-${s.id}`,
+        titulo: `Sessão ${s.tipoSessao || "a Definir"}`,
+        data: s.dataSessao,
+        tipo: "Sessão",
+        status: "Confirmado",
+      }));
     const eventosLocacao = locacoes.map((l) => ({
       id: `locacao-${l.id}`,
       titulo: `Salão Alugado: ${l.finalidade}`,
@@ -247,10 +266,80 @@ export const getCalendarioUnificado = async (req, res) => {
       status: e.status,
     }));
 
+    // --- Lógica para Aniversários ---
+    const eventosAniversario = [];
+    const anoAtual = new Date().getFullYear();
+
+    membros.forEach((membro) => {
+      const datasComemorativas = [
+        {
+          tipoData: `Aniversário (${membro.NomeCompleto})`,
+          data: membro.DataNascimento,
+          nome: membro.NomeCompleto,
+          situacao: membro.Situacao,
+        },
+        {
+          tipoData: `Iniciação de ${membro.NomeCompleto}`,
+          data: membro.DataIniciacao,
+          nome: membro.NomeCompleto,
+          situacao: membro.Situacao,
+        },
+        {
+          tipoData: `Elevação de ${membro.NomeCompleto}`,
+          data: membro.DataElevacao,
+          nome: membro.NomeCompleto,
+          situacao: membro.Situacao,
+        },
+        {
+          tipoData: `Exaltação de ${membro.NomeCompleto}`,
+          data: membro.DataExaltacao,
+          nome: membro.NomeCompleto,
+          situacao: membro.Situacao,
+        },
+        ...membro.familiares.map((f) => ({
+          tipoData: `Aniversário (${f.nomeCompleto} - ${f.parentesco} de ${membro.NomeCompleto})`,
+          data: f.dataNascimento,
+          nome: f.nomeCompleto,
+          situacao: "N/A",
+        })),
+      ];
+
+      datasComemorativas.forEach((item) => {
+        if (item.data && new Date(item.data).getUTCMonth() + 1 === numMes) {
+          const dataOriginal = new Date(item.data);
+          const dataEvento = new Date(
+            Date.UTC(
+              numAno,
+              dataOriginal.getUTCMonth(),
+              dataOriginal.getUTCDate(),
+              12,
+              0,
+              0
+            )
+          );
+
+          let tituloAniversario = item.tipoData;
+          const anos = anoAtual - dataOriginal.getUTCFullYear();
+          if (anos > 0) tituloAniversario += ` (${anos} anos)`;
+
+          eventosAniversario.push({
+            id: `aniversario-${item.tipoData}-${membro.id}-${item.nome}`,
+            titulo: tituloAniversario,
+            data: dataEvento.toISOString(),
+            tipo: "Aniversário",
+            status: "Confirmado",
+            situacao: item.situacao,
+          });
+        }
+      });
+    });
+
+    // --- Consolidação Final ---
     let todosOsEventos = [
       ...eventosSessao,
       ...eventosLocacao,
       ...eventosRegistrados,
+      ...eventosAniversario,
     ];
     todosOsEventos.sort((a, b) => new Date(a.data) - new Date(b.data));
 

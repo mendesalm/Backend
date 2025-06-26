@@ -1,163 +1,534 @@
-// utils/pdfGenerator.js
-import PdfPrinter from 'pdfmake';
+// backend/utils/pdfGenerator.js
+import PdfPrinter from "pdfmake";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
-// Definição das fontes padrão da biblioteca.
+// Configurar __dirname para ES Modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const fontsPath = path.join(__dirname, "..", "assets", "fonts");
+
 const fonts = {
   Roboto: {
-    normal: 'Roboto-Regular.ttf',
-    bold: 'Roboto-Medium.ttf',
-    italics: 'Roboto-Italic.ttf',
-    bolditalics: 'Roboto-MediumItalic.ttf'
-  }
+    normal: path.join(fontsPath, "Roboto-Regular.ttf"),
+    bold: path.join(fontsPath, "Roboto-Bold.ttf"),
+    italics: path.join(fontsPath, "Roboto-Italic.ttf"),
+    bolditalics: path.join(fontsPath, "Roboto-BoldItalic.ttf"),
+  },
 };
 
 const printer = new PdfPrinter(fonts);
 
-// Função auxiliar para criar o cabeçalho padrão dos relatórios
-const criarCabecalhoRelatorio = (titulo, subtitulo) => {
-    return [
-        { text: `Relatório - Loja SysJPJ`, style: 'header' },
-        { text: titulo, style: 'subheader' },
-        { text: subtitulo, style: 'body' },
-    ];
+/**
+ * Gera um documento PDF a partir de uma definição de documento.
+ * @param {object} docDefinition - A definição do documento no formato do pdfmake.
+ * @returns {Promise<Buffer>} - Uma promise que resolve com o buffer do PDF.
+ */
+export const generatePdf = (docDefinition) => {
+  return new Promise((resolve, reject) => {
+    const finalDocDefinition = {
+      ...docDefinition,
+      defaultStyle: {
+        font: "Roboto",
+        ...docDefinition.defaultStyle,
+      },
+    };
+
+    const pdfDoc = printer.createPdfKitDocument(finalDocDefinition);
+
+    const chunks = [];
+    pdfDoc.on("data", (chunk) => {
+      chunks.push(chunk);
+    });
+
+    pdfDoc.on("end", () => {
+      const result = Buffer.concat(chunks);
+      resolve(result);
+    });
+
+    pdfDoc.on("error", (err) => {
+      reject(err);
+    });
+
+    pdfDoc.end();
+  });
 };
 
-const estilosPadrao = {
-    header: { fontSize: 18, bold: true, margin: [0, 0, 0, 10], alignment: 'center' },
-    subheader: { fontSize: 14, bold: true, margin: [0, 10, 0, 5] },
-    body: { fontSize: 10, margin: [0, 0, 0, 15], italics: true, alignment: 'center' },
-    tableHeader: { bold: true, fontSize: 11, color: 'black' },
-    tableBody: { fontSize: 10 }
+// --- FUNÇÕES DE GERAÇÃO DE PDF EXPORTADAS ---
+
+/**
+ * Nomeado para consistência com o controller.
+ */
+export const gerarPdfMembros = async (members) => {
+  const bodyData = members.map((member) => [
+    member.CIM || "N/A",
+    member.NomeCompleto,
+    member.Situacao,
+    member.Graduacao,
+    member.Telefone || "N/A",
+    member.Email,
+  ]);
+
+  const docDefinition = {
+    content: [
+      { text: "Relatório de Membros Ativos", style: "header" },
+      {
+        style: "tableExample",
+        table: {
+          headerRows: 1,
+          widths: ["auto", "*", "auto", "auto", "auto", "auto"],
+          body: [
+            ["CIM", "Nome Completo", "Situação", "Grau", "Telefone", "E-mail"],
+            ...bodyData,
+          ],
+        },
+      },
+    ],
+    styles: {
+      header: { fontSize: 18, bold: true, margin: [0, 0, 0, 10] },
+      tableExample: { margin: [0, 5, 0, 15] },
+    },
+  };
+
+  return generatePdf(docDefinition);
 };
 
-const layoutTabela = {
-    fillColor: function (rowIndex, node, columnIndex) {
-        return (rowIndex % 2 === 0) ? '#EAEAEA' : null;
+const formatCurrency = (value) => {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(value || 0);
+};
+
+export const gerarPdfBalancete = async (balanceteData) => {
+  const { totais, lancamentos, periodo } = balanceteData;
+  const bodyData = lancamentos.map((lanc) => [
+    new Date(lanc.data).toLocaleDateString("pt-BR"),
+    lanc.descricao,
+    lanc.conta.nome,
+    lanc.tipo,
+    { text: formatCurrency(lanc.valor), alignment: "right" },
+  ]);
+  const docDefinition = {
+    content: [
+      { text: "Balancete Financeiro", style: "header" },
+      {
+        text: `Período: ${periodo.inicio} a ${periodo.fim}`,
+        style: "subheader",
+      },
+      {
+        style: "tableExample",
+        layout: "noBorders",
+        table: {
+          widths: ["*", "auto"],
+          body: [
+            [
+              { text: "Total de Entradas:", bold: true },
+              {
+                text: formatCurrency(totais.totalEntradas),
+                alignment: "right",
+              },
+            ],
+            [
+              { text: "Total de Saídas:", bold: true },
+              { text: formatCurrency(totais.totalSaidas), alignment: "right" },
+            ],
+            [
+              { text: "Saldo do Período:", bold: true, fontSize: 14 },
+              {
+                text: formatCurrency(totais.saldoPeriodo),
+                bold: true,
+                fontSize: 14,
+                alignment: "right",
+              },
+            ],
+          ],
+        },
+      },
+      { text: "Lançamentos Detalhados", style: "subheader" },
+      {
+        style: "tableExample",
+        table: {
+          headerRows: 1,
+          widths: ["auto", "*", "auto", "auto", "auto"],
+          body: [["Data", "Descrição", "Conta", "Tipo", "Valor"], ...bodyData],
+        },
+        layout: "lightHorizontalLines",
+      },
+    ],
+    styles: {
+      header: {
+        fontSize: 18,
+        bold: true,
+        margin: [0, 0, 0, 10],
+        alignment: "center",
+      },
+      subheader: { fontSize: 14, bold: true, margin: [0, 15, 0, 5] },
+      tableExample: { margin: [0, 5, 0, 15] },
+    },
+  };
+  return generatePdf(docDefinition);
+};
+
+export const gerarPdfAniversariantes = async (aniversariantes, mes) => {
+  const bodyData = aniversariantes.map((aniv) => [
+    aniv.data,
+    aniv.nome,
+    aniv.tipo,
+  ]);
+  const docDefinition = {
+    content: [
+      { text: `Relatório de Aniversariantes - ${mes}`, style: "header" },
+      { text: `Gerado em: ${new Date().toLocaleDateString("pt-BR")}` },
+      {
+        style: "tableExample",
+        table: {
+          headerRows: 1,
+          widths: ["auto", "*", "auto"],
+          body: [["Data", "Nome", "Tipo (Membro/Familiar)"], ...bodyData],
+        },
+        layout: "lightHorizontalLines",
+      },
+    ],
+    styles: {
+      header: {
+        fontSize: 18,
+        bold: true,
+        margin: [0, 0, 0, 10],
+        alignment: "center",
+      },
+      tableExample: { margin: [0, 15, 0, 15] },
+    },
+  };
+  return generatePdf(docDefinition);
+};
+
+export const gerarPdfCargosGestao = async (cargos) => {
+  const bodyData = cargos.map((cargo) => [
+    cargo.nomeCargo,
+    cargo.membro ? cargo.membro.NomeCompleto : "Vago",
+    new Date(cargo.dataInicio).toLocaleDateString("pt-BR"),
+    cargo.dataTermino
+      ? new Date(cargo.dataTermino).toLocaleDateString("pt-BR")
+      : "Atual",
+  ]);
+  const docDefinition = {
+    content: [
+      { text: `Relatório de Cargos da Gestão Atual`, style: "header" },
+      { text: `Gerado em: ${new Date().toLocaleDateString("pt-BR")}` },
+      {
+        style: "tableExample",
+        table: {
+          headerRows: 1,
+          widths: ["*", "*", "auto", "auto"],
+          body: [
+            ["Cargo", "Ocupante", "Data de Início", "Data de Término"],
+            ...bodyData,
+          ],
+        },
+        layout: "lightHorizontalLines",
+      },
+    ],
+    styles: {
+      header: {
+        fontSize: 18,
+        bold: true,
+        margin: [0, 0, 0, 10],
+        alignment: "center",
+      },
+      tableExample: { margin: [0, 15, 0, 15] },
+    },
+  };
+  return generatePdf(docDefinition);
+};
+
+export const gerarPdfComissoes = async (comissoes, dataInicio, dataFim) => {
+  const content = [
+    { text: "Relatório de Comissões", style: "header" },
+    { text: `Período: ${dataInicio} a ${dataFim}`, style: "subheader" },
+  ];
+  comissoes.forEach((comissao) => {
+    content.push({ text: comissao.nome, style: "comissaoTitle" });
+    if (comissao.membros && comissao.membros.length > 0) {
+      const bodyData = comissao.membros.map((membro) => [
+        membro.NomeCompleto,
+        membro.MembroComissao ? membro.MembroComissao.cargo : "Membro",
+      ]);
+      content.push({
+        style: "tableExample",
+        table: {
+          headerRows: 1,
+          widths: ["*", "auto"],
+          body: [
+            [
+              { text: "Nome do Membro", style: "tableHeader" },
+              { text: "Cargo na Comissão", style: "tableHeader" },
+            ],
+            ...bodyData,
+          ],
+        },
+        layout: "lightHorizontalLines",
+      });
+    } else {
+      content.push({
+        text: "Nenhum membro nesta comissão.",
+        italics: true,
+        margin: [0, 5, 0, 15],
+      });
     }
+  });
+  const docDefinition = {
+    content: content,
+    styles: {
+      header: {
+        fontSize: 18,
+        bold: true,
+        margin: [0, 0, 0, 10],
+        alignment: "center",
+      },
+      subheader: { fontSize: 10, margin: [0, 0, 0, 20], alignment: "center" },
+      comissaoTitle: {
+        fontSize: 16,
+        bold: true,
+        margin: [0, 15, 0, 5],
+        color: "#333",
+      },
+      tableExample: { margin: [0, 5, 0, 15] },
+      tableHeader: { bold: true, color: "black" },
+    },
+  };
+  return generatePdf(docDefinition);
 };
 
-// --- FUNÇÕES DE GERAÇÃO DE PDF ---
+export const gerarPdfDatasMaconicas = async (datas, mes) => {
+  const bodyData = datas.map((item) => [
+    item.data,
+    item.nome,
+    item.tipo,
+    item.anosComemorados,
+  ]);
+  const docDefinition = {
+    content: [
+      { text: `Relatório de Datas Maçônicas - ${mes}`, style: "header" },
+      { text: `Gerado em: ${new Date().toLocaleDateString("pt-BR")}` },
+      {
+        style: "tableExample",
+        table: {
+          headerRows: 1,
+          widths: ["auto", "*", "auto", "auto"],
+          body: [
+            ["Data", "Nome do Irmão", "Aniversário de", "Anos"],
+            ...bodyData,
+          ],
+        },
+        layout: "lightHorizontalLines",
+      },
+    ],
+    styles: {
+      header: {
+        fontSize: 18,
+        bold: true,
+        margin: [0, 0, 0, 10],
+        alignment: "center",
+      },
+      tableExample: { margin: [0, 15, 0, 15] },
+    },
+  };
+  return generatePdf(docDefinition);
+};
 
-export function gerarPdfBalancete(dadosBalancete, lancamentos) {
-    // ... (código existente para o balancete)
-}
+export const gerarPdfEmprestimos = async (emprestimos, tipo, livro) => {
+  const title =
+    tipo === "ativos"
+      ? "Relatório de Empréstimos Ativos da Biblioteca"
+      : `Histórico de Empréstimos do Livro: ${livro.titulo}`;
+  const bodyData = emprestimos.map((emp) => [
+    emp.livro ? emp.livro.titulo : "N/A",
+    emp.membro ? emp.membro.NomeCompleto : "N/A",
+    new Date(emp.dataEmprestimo).toLocaleDateString("pt-BR"),
+    new Date(emp.dataDevolucaoPrevista).toLocaleDateString("pt-BR"),
+    emp.dataDevolucaoReal
+      ? new Date(emp.dataDevolucaoReal).toLocaleDateString("pt-BR")
+      : "Pendente",
+  ]);
+  const docDefinition = {
+    content: [
+      { text: title, style: "header" },
+      { text: `Gerado em: ${new Date().toLocaleDateString("pt-BR")}` },
+      {
+        style: "tableExample",
+        table: {
+          headerRows: 1,
+          widths: ["*", "*", "auto", "auto", "auto"],
+          body: [
+            ["Título", "Membro", "Empréstimo", "Dev. Prevista", "Devolvido em"],
+            ...bodyData,
+          ],
+        },
+        layout: "lightHorizontalLines",
+      },
+    ],
+    styles: {
+      header: {
+        fontSize: 18,
+        bold: true,
+        margin: [0, 0, 0, 10],
+        alignment: "center",
+      },
+      tableExample: { margin: [0, 15, 0, 15] },
+    },
+  };
+  return generatePdf(docDefinition);
+};
 
-export function gerarPdfFrequencia(dados, dataInicio, dataFim) {
-    const corpoTabela = dados.map(item => [ item.nome, `${item.presencas} de ${item.totalSessoes}`, `${item.percentual.toFixed(2)}%` ]);
-    const docDefinition = {
-        content: [ ...criarCabecalhoRelatorio('Relatório de Frequência', `Período de ${dataInicio} a ${dataFim}`), { table: { headerRows: 1, widths: ['*', 'auto', 'auto'], body: [[{ text: 'Membro', style: 'tableHeader' }, { text: 'Presenças', style: 'tableHeader' }, { text: 'Percentual', style: 'tableHeader' }], ...corpoTabela] }, layout: layoutTabela } ],
-        styles: estilosPadrao, defaultStyle: { fontSize: 10 }
-    };
-    return printer.createPdfKitDocument(docDefinition);
-}
+export const gerarPdfFrequencia = async (
+  dadosFrequencia,
+  dataInicio,
+  dataFim
+) => {
+  const bodyData = dadosFrequencia.map((item) => [
+    item.nome,
+    item.presencas,
+    item.totalSessoes,
+    `${item.percentual.toFixed(2)}%`,
+  ]);
+  const docDefinition = {
+    content: [
+      { text: "Relatório de Frequência em Sessões", style: "header" },
+      { text: `Período: ${dataInicio} a ${dataFim}`, style: "subheader" },
+      {
+        style: "tableExample",
+        table: {
+          headerRows: 1,
+          widths: ["*", "auto", "auto", "auto"],
+          body: [
+            ["Nome do Membro", "Presenças", "Total de Sessões", "Frequência"],
+            ...bodyData,
+          ],
+        },
+        layout: "lightHorizontalLines",
+      },
+    ],
+    styles: {
+      header: {
+        fontSize: 18,
+        bold: true,
+        margin: [0, 0, 0, 10],
+        alignment: "center",
+      },
+      subheader: { fontSize: 12, margin: [0, 0, 0, 15], alignment: "center" },
+      tableExample: { margin: [0, 5, 0, 15] },
+    },
+  };
+  return generatePdf(docDefinition);
+};
 
-export function gerarPdfVisitacoes(dados, dataInicio, dataFim) {
-    const corpoTabela = dados.map(visita => [ visita.visitante.NomeCompleto, new Date(visita.dataSessao).toLocaleDateString('pt-BR', {timeZone: 'UTC'}), visita.lojaVisitada, visita.orienteLojaVisitada ]);
-    const docDefinition = {
-        content: [ ...criarCabecalhoRelatorio('Relatório de Visitações', `Período de ${dataInicio} a ${dataFim}`), { table: { headerRows: 1, widths: ['*', 'auto', 'auto', 'auto'], body: [[{ text: 'Membro Visitante', style: 'tableHeader' }, { text: 'Data', style: 'tableHeader' }, { text: 'Loja Visitada', style: 'tableHeader' }, { text: 'Oriente', style: 'tableHeader' }], ...corpoTabela] }, layout: layoutTabela } ],
-        styles: estilosPadrao, defaultStyle: { fontSize: 10 }
-    };
-    return printer.createPdfKitDocument(docDefinition);
-}
+export const gerarPdfVisitacoes = async (visitacoes, dataInicio, dataFim) => {
+  const bodyData = visitacoes.map((item) => [
+    new Date(item.dataSessao).toLocaleDateString("pt-BR"),
+    item.visitante.NomeCompleto,
+    item.lojaVisitada,
+  ]);
+  const docDefinition = {
+    content: [
+      { text: "Relatório de Visitações", style: "header" },
+      { text: `Período: ${dataInicio} a ${dataFim}`, style: "subheader" },
+      {
+        style: "tableExample",
+        table: {
+          headerRows: 1,
+          widths: ["auto", "*", "*"],
+          body: [["Data", "Membro Visitante", "Loja Visitada"], ...bodyData],
+        },
+        layout: "lightHorizontalLines",
+      },
+    ],
+    styles: {
+      header: {
+        fontSize: 18,
+        bold: true,
+        margin: [0, 0, 0, 10],
+        alignment: "center",
+      },
+      subheader: { fontSize: 12, margin: [0, 0, 0, 15], alignment: "center" },
+      tableExample: { margin: [0, 5, 0, 15] },
+    },
+  };
+  return generatePdf(docDefinition);
+};
 
-export function gerarPdfMembros(membros) {
-    const corpoTabela = membros.map(membro => [ membro.NomeCompleto, membro.CIM || 'N/A', membro.Graduacao || 'N/A', membro.Situacao || 'N/A' ]);
-    const docDefinition = {
-        content: [ ...criarCabecalhoRelatorio('Quadro de Obreiros Ativos', `Gerado em ${new Date().toLocaleDateString('pt-BR')}`), { table: { headerRows: 1, widths: ['*', 'auto', 'auto', 'auto'], body: [[{ text: 'Nome Completo', style: 'tableHeader' }, { text: 'CIM', style: 'tableHeader' }, { text: 'Grau', style: 'tableHeader' }, { text: 'Situação', style: 'tableHeader' }], ...corpoTabela] }, layout: layoutTabela } ],
-        styles: estilosPadrao, defaultStyle: { fontSize: 10 }
-    };
-    return printer.createPdfKitDocument(docDefinition);
-}
+export const gerarPdfFinanceiroDetalhado = async (
+  conta,
+  lancamentos,
+  dataInicio,
+  dataFim
+) => {
+  const bodyData = lancamentos.map((lanc) => [
+    new Date(lanc.dataLancamento).toLocaleDateString("pt-BR"),
+    lanc.descricao,
+    lanc.tipo,
+    { text: formatCurrency(lanc.valor), alignment: "right" },
+  ]);
+  const docDefinition = {
+    content: [
+      { text: `Extrato da Conta: ${conta.nome}`, style: "header" },
+      { text: `Período: ${dataInicio} a ${dataFim}`, style: "subheader" },
+      {
+        style: "tableExample",
+        table: {
+          headerRows: 1,
+          widths: ["auto", "*", "auto", "auto"],
+          body: [["Data", "Descrição", "Tipo", "Valor"], ...bodyData],
+        },
+        layout: "lightHorizontalLines",
+      },
+    ],
+    styles: {
+      header: {
+        fontSize: 18,
+        bold: true,
+        margin: [0, 0, 0, 10],
+        alignment: "center",
+      },
+      subheader: { fontSize: 12, margin: [0, 0, 0, 15], alignment: "center" },
+      tableExample: { margin: [0, 5, 0, 15] },
+    },
+  };
+  return generatePdf(docDefinition);
+};
 
-export function gerarPdfAniversariantes(dados, dataInicio, dataFim) {
-    const corpoTabela = dados.map(aniv => [ aniv.nome, aniv.dataAniversario, aniv.tipo, aniv.relacionadoA || '-' ]);
-    const docDefinition = {
-        content: [ ...criarCabecalhoRelatorio('Relatório de Aniversariantes', `Período de ${dataInicio} a ${dataFim}`), { table: { headerRows: 1, widths: ['*', 'auto', 'auto', '*'], body: [[{ text: 'Nome', style: 'tableHeader' }, { text: 'Data', style: 'tableHeader' }, { text: 'Tipo', style: 'tableHeader' }, { text: 'Membro Relacionado', style: 'tableHeader' }], ...corpoTabela] }, layout: layoutTabela } ],
-        styles: estilosPadrao, defaultStyle: { fontSize: 10 }
-    };
-    return printer.createPdfKitDocument(docDefinition);
-}
-
-export function gerarPdfFinanceiroDetalhado(conta, lancamentos, dataInicio, dataFim) {
-    const corpoTabela = lancamentos.map(lanc => [ new Date(lanc.dataLancamento).toLocaleDateString('pt-BR', {timeZone: 'UTC'}), lanc.descricao, lanc.membroAssociado ? lanc.membroAssociado.NomeCompleto : 'N/A', new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(lanc.valor) ]);
-    const docDefinition = {
-        content: [ ...criarCabecalhoRelatorio(`Extrato Detalhado da Conta: ${conta.nome}`, `Período de ${dataInicio} a ${dataFim}`), { table: { headerRows: 1, widths: ['auto', '*', '*', 'auto'], body: [[{ text: 'Data', style: 'tableHeader' }, { text: 'Descrição', style: 'tableHeader' }, { text: 'Membro Associado', style: 'tableHeader' }, { text: 'Valor', style: 'tableHeader' }], ...corpoTabela] }, layout: layoutTabela } ],
-        styles: estilosPadrao, defaultStyle: { fontSize: 10 }
-    };
-    return printer.createPdfKitDocument(docDefinition);
-}
-
-export function gerarPdfCargosGestao(cargos) {
-    const corpoTabela = cargos.map(cargo => [ cargo.nomeCargo, cargo.LodgeMember.NomeCompleto, new Date(cargo.dataInicio).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) ]);
-    const docDefinition = {
-        content: [ ...criarCabecalhoRelatorio('Quadro de Cargos da Gestão Atual', `Gerado em ${new Date().toLocaleDateString('pt-BR')}`), { table: { headerRows: 1, widths: ['*', '*', 'auto'], body: [[{ text: 'Cargo', style: 'tableHeader' }, { text: 'Ocupante', style: 'tableHeader' }, { text: 'Data de Início', style: 'tableHeader' }], ...corpoTabela] }, layout: layoutTabela } ],
-        styles: estilosPadrao, defaultStyle: { fontSize: 10 }
-    };
-    return printer.createPdfKitDocument(docDefinition);
-}
-
-export function gerarPdfDatasMaconicas(dados, dataInicio, dataFim) {
-    const corpoTabela = dados.map(item => [ item.nome, item.data, item.tipo, item.anosComemorados ]);
-    const docDefinition = {
-        content: [ ...criarCabecalhoRelatorio('Relatório de Datas Maçônicas', `Período de ${dataInicio} a ${dataFim}`), { table: { headerRows: 1, widths: ['*', 'auto', 'auto', 'auto'], body: [[{ text: 'Membro', style: 'tableHeader' }, { text: 'Data', style: 'tableHeader' }, { text: 'Comemoração', style: 'tableHeader' }, { text: 'Anos', style: 'tableHeader' }], ...corpoTabela] }, layout: layoutTabela } ],
-        styles: estilosPadrao, defaultStyle: { fontSize: 10 }
-    };
-    return printer.createPdfKitDocument(docDefinition);
-}
-
-export function gerarPdfEmprestimos(emprestimos, tipoRelatorio, dadosLivro = null) {
-    const corpoTabela = emprestimos.map(e => {
-        const dataDevolucao = e.dataDevolucaoReal ? new Date(e.dataDevolucaoReal).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : (e.status === 'Atrasado' ? { text: 'ATRASADO', color: 'red', bold: true } : 'Emprestado');
-        return [ tipoRelatorio === 'ativos' ? e.livro.titulo : e.membro.NomeCompleto, new Date(e.dataEmprestimo).toLocaleDateString('pt-BR', {timeZone: 'UTC'}), new Date(e.dataDevolucaoPrevista).toLocaleDateString('pt-BR', {timeZone: 'UTC'}), dataDevolucao ];
-    });
-    const cabecalhoColuna1 = tipoRelatorio === 'ativos' ? 'Livro' : 'Membro';
-    const subtitulo = tipoRelatorio === 'ativos' ? 'Empréstimos Ativos e Atrasados' : `Histórico do Livro: ${dadosLivro.titulo}`;
-    const docDefinition = {
-        content: [ ...criarCabecalhoRelatorio('Relatório da Biblioteca', subtitulo), { table: { headerRows: 1, widths: ['*', 'auto', 'auto', 'auto'], body: [[{ text: cabecalhoColuna1, style: 'tableHeader' }, { text: 'Data Empréstimo', style: 'tableHeader' }, { text: 'Devolução Prevista', style: 'tableHeader' }, { text: 'Devolução Real', style: 'tableHeader' }], ...corpoTabela] }, layout: layoutTabela } ],
-        styles: estilosPadrao, defaultStyle: { fontSize: 10 }
-    };
-    return printer.createPdfKitDocument(docDefinition);
-}
-
-export function gerarPdfComissoes(comissoes, dataInicio, dataFim) {
-    const comissoesContent = comissoes.map(comissao => {
-        const membrosText = comissao.membros.map(membro => `\t• ${membro.NomeCompleto}`).join('\n');
-        return [ { text: comissao.nome, style: 'subheader', margin: [0, 15, 0, 5] }, { text: comissao.descricao, italics: true, margin: [0, 0, 0, 5] }, { text: `Membros:\n${membrosText}` } ];
-    });
-    const docDefinition = {
-        content: [ ...criarCabecalhoRelatorio('Relatório de Comissões', `Comissões ativas no período de ${dataInicio} a ${dataFim}`), ...comissoesContent.flat() ],
-        styles: estilosPadrao, defaultStyle: { fontSize: 10 }
-    };
-    return printer.createPdfKitDocument(docDefinition);
-}
-
-export function gerarPdfPatrimonio(patrimonios) {
-    const corpoTabela = patrimonios.map(item => [
-        item.nome,
-        new Date(item.dataAquisicao).toLocaleDateString('pt-BR', {timeZone: 'UTC'}),
-        new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.valorAquisicao),
-        item.estadoConservacao,
-        item.localizacao || 'N/A'
-    ]);
-
-    const docDefinition = {
-        content: [
-            ...criarCabecalhoRelatorio('Relatório de Inventário de Patrimônio', `Gerado em ${new Date().toLocaleDateString('pt-BR')}`),
-            {
-                style: { margin: [0, 5, 0, 15] },
-                table: {
-                    headerRows: 1,
-                    widths: ['*', 'auto', 'auto', 'auto', 'auto'],
-                    body: [
-                        [{ text: 'Nome do Bem', style: 'tableHeader' }, { text: 'Data Aquisição', style: 'tableHeader' }, { text: 'Valor', style: 'tableHeader' }, { text: 'Estado', style: 'tableHeader' }, { text: 'Localização', style: 'tableHeader' }],
-                        ...corpoTabela
-                    ]
-                },
-                layout: layoutTabela
-            }
-        ],
-        styles: estilosPadrao,
-        defaultStyle: { fontSize: 10 }
-    };
-    return printer.createPdfKitDocument(docDefinition);
-}
+export const gerarPdfPatrimonio = async (itens) => {
+  const bodyData = itens.map((item) => [
+    item.nome,
+    item.quantidade,
+    item.estadoConservacao,
+    item.localizacao || "N/A",
+  ]);
+  const docDefinition = {
+    content: [
+      { text: "Relatório de Patrimônio", style: "header" },
+      { text: `Gerado em: ${new Date().toLocaleDateString("pt-BR")}` },
+      {
+        style: "tableExample",
+        table: {
+          headerRows: 1,
+          widths: ["*", "auto", "auto", "*"],
+          body: [["Item", "Qtd.", "Estado", "Localização"], ...bodyData],
+        },
+        layout: "lightHorizontalLines",
+      },
+    ],
+    styles: {
+      header: {
+        fontSize: 18,
+        bold: true,
+        margin: [0, 0, 0, 10],
+        alignment: "center",
+      },
+      tableExample: { margin: [0, 15, 0, 15] },
+    },
+  };
+  return generatePdf(docDefinition);
+};

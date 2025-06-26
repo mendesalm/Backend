@@ -1,79 +1,99 @@
+// backend/routes/masonicsession.routes.js
 import express from "express";
-import * as masonicSessionController from "../controllers/masonicsession.controller.js";
 import authMiddleware from "../middlewares/auth.middleware.js";
 import { authorizeByFeature } from "../middlewares/authorizeByFeature.middleware.js";
-import { uploadAta } from "../middlewares/upload.middleware.js";
+
+// 1. Importa todas as funções necessárias do controller
 import {
-  sessionRules,
+  getAllSessions,
+  getSessionById,
+  createSession,
+  updateSession,
+  deleteSession,
+  updateSessionAttendance,
+  manageSessionVisitor,
+  removeSessionVisitor,
+  gerarBalaustreSessao,
+} from "../controllers/masonicsession.controller.js";
+
+// 2. Importa todos os validadores necessários
+import {
+  validateSessionCreation,
+  validateSessionUpdate,
+  validateAttendanceUpdate,
   sessionIdParamRule,
-  setAttendeesRules,
-  handleValidationErrors,
 } from "../validators/masonicsession.validator.js";
-import visitorRoutes from "./visitantesessao.routes.js";
 
 const router = express.Router();
 
+// Aplica autenticação a todas as rotas deste ficheiro
 router.use(authMiddleware);
 
-// CRUD da Sessão Principal
+// --- ROTAS PARA SESSÕES (CRUD) ---
+
+router.get("/", authorizeByFeature("visualizarSessoes"), getAllSessions);
+
 router.post(
   "/",
-  authorizeByFeature("criarSessaoMaconica"),
-  uploadAta.single("ataFile"),
-  sessionRules(false),
-  handleValidationErrors,
-  masonicSessionController.createSession
+  authorizeByFeature("criarNovaSessao"),
+  validateSessionCreation,
+  createSession
 );
-router.get(
-  "/",
-  authorizeByFeature("listarSessoes"),
-  masonicSessionController.getAllSessions
-);
+
 router.get(
   "/:id",
-  authorizeByFeature("visualizarDetalhesSessaoMaconica"),
-  sessionIdParamRule(),
-  handleValidationErrors,
-  masonicSessionController.getSessionById
+  authorizeByFeature("visualizarDetalhesSessao"),
+  sessionIdParamRule,
+  getSessionById
 );
+
 router.put(
   "/:id",
-  authorizeByFeature("editarSessaoMaconica"),
-  uploadAta.single("ataFile"),
-  sessionIdParamRule(),
-  sessionRules(true),
-  handleValidationErrors,
-  masonicSessionController.updateSession
+  authorizeByFeature("editarSessao"),
+  sessionIdParamRule,
+  validateSessionUpdate,
+  updateSession
 );
+
 router.delete(
   "/:id",
-  authorizeByFeature("deletarSessaoMaconica"),
-  sessionIdParamRule(),
-  handleValidationErrors,
-  masonicSessionController.deleteSession
+  authorizeByFeature("deletarSessao"),
+  sessionIdParamRule,
+  deleteSession
 );
 
-// Rotas Aninhadas
-router.use("/:id/visitors", visitorRoutes);
-router.get(
-  "/:id/attendees",
-  authorizeByFeature("visualizarPresentesSessao"),
-  sessionIdParamRule(),
-  handleValidationErrors,
-  masonicSessionController.getSessionAttendees
+// --- ROTAS PARA GESTÃO DE PRESENÇA E VISITANTES ---
+
+router.put(
+  "/:id/attendance",
+  authorizeByFeature("gerenciarPresenca"),
+  sessionIdParamRule,
+  validateAttendanceUpdate,
+  updateSessionAttendance
 );
+
 router.post(
-  "/:id/attendees",
-  authorizeByFeature("gerenciarPresentesSessao"),
-  sessionIdParamRule(),
-  setAttendeesRules,
-  handleValidationErrors,
-  masonicSessionController.setSessionAttendees
-);
-router.get(
-  "/:id/painel-chanceler",
-  authorizeByFeature("visualizarPainelChanceler"),
-  masonicSessionController.getPainelChanceler
+  "/:id/visitors",
+  authorizeByFeature("gerenciarVisitantes"),
+  sessionIdParamRule,
+  manageSessionVisitor
 );
 
+router.delete(
+  "/visitors/:visitorId",
+  authorizeByFeature("gerenciarVisitantes"),
+  // Adicionar validador para visitorId se necessário
+  removeSessionVisitor
+);
+
+// --- ROTAS PARA DOCUMENTOS DA SESSÃO ---
+
+router.post(
+  "/:id/gerar-balaustre",
+  authorizeByFeature("gerarBalaustre"),
+  sessionIdParamRule,
+  gerarBalaustreSessao
+);
+
+// 3. Garante a exportação padrão do router
 export default router;
