@@ -12,12 +12,12 @@ export default (sequelize, DataTypes) => {
         },
       },
       parentesco: {
-        type: DataTypes.ENUM("Cônjuge", "Esposa", "Filho", "Filha"),
+        type: DataTypes.ENUM("Cônjuge", "Filho", "Filha"),
         allowNull: false,
         validate: {
           notEmpty: { msg: "Parentesco é obrigatório." },
           isIn: {
-            args: [["Cônjuge", "Esposa", "Filho", "Filha"]],
+            args: [["Cônjuge", "Filho", "Filha"]],
             msg: "Parentesco inválido.",
           },
         },

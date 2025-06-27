@@ -43,8 +43,8 @@ export const getAllSessions = async (req, res) => {
               model: db.FamilyMember,
               as: "familiares",
               attributes: ["nomeCompleto", "parentesco"],
-              where: { parentesco: "Esposa" },
-              required: false, // Não exclui a sessão se o membro não tiver esposa cadastrada
+              where: { parentesco: "Cônjuge" },
+              required: false, // Não exclui a sessão se o membro não tiver cônjuge cadastrado(a)
             },
           ],
         },
@@ -61,7 +61,7 @@ export const getAllSessions = async (req, res) => {
           where: { sessionId: sessao.id, statusPresenca: "Presente" },
         });
         const visitantes = await db.VisitanteSessao.count({
-          where: { sessionId: sessao.id },
+          where: { masonicSessionId: sessao.id },
         });
         sessaoJSON.presentesCount = presencas;
         sessaoJSON.visitantesCount = visitantes;
@@ -78,12 +78,10 @@ export const getAllSessions = async (req, res) => {
     res.status(200).json(sessoesFormatadas);
   } catch (error) {
     console.error("Erro em getAllSessions:", error);
-    res
-      .status(500)
-      .json({
-        message: "Erro ao listar sessões maçónicas.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao listar sessões maçónicas.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -104,7 +102,7 @@ export const getSessionById = async (req, res) => {
               model: db.FamilyMember,
               as: "familiares",
               attributes: ["nomeCompleto", "parentesco"],
-              where: { parentesco: "Esposa" },
+              where: { parentesco: "Cônjuge" },
               required: false,
             },
           ],
@@ -140,12 +138,10 @@ export const getSessionById = async (req, res) => {
     res.status(200).json(sessionJSON);
   } catch (error) {
     console.error("Erro em getSessionById:", error);
-    res
-      .status(500)
-      .json({
-        message: "Erro ao buscar detalhes da sessão.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao buscar detalhes da sessão.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -186,12 +182,10 @@ export const createSession = async (req, res) => {
       "Erro na transação principal (criação da sessão / avanço da escala):",
       error
     );
-    return res
-      .status(500)
-      .json({
-        message: "Falha ao criar o registro da sessão ou avançar a escala.",
-        errorDetails: error.message,
-      });
+    return res.status(500).json({
+      message: "Falha ao criar o registro da sessão ou avançar a escala.",
+      errorDetails: error.message,
+    });
   }
 
   // Operações secundárias (Pós-Transação)
@@ -217,9 +211,22 @@ export const createSession = async (req, res) => {
       : "Oferecido pela Loja";
 
     const sessionDate = new Date(novaSessao.dataSessao);
+
+    let classeSessaoFormatada;
+    const tipoSessaoLowerCase = tipoSessao.toLowerCase();
+
+    if (
+      tipoSessaoLowerCase === "pública" ||
+      tipoSessaoLowerCase === "comemorativa"
+    ) {
+      classeSessaoFormatada = `Sessão ${tipoSessao}`;
+    } else {
+      classeSessaoFormatada = `Sessão ${tipoSessao} no Grau de ${subtipoSessao} Maçom`;
+    }
+
     const dadosParaTemplate = {
       NumeroBalaustre: novaSessao.id,
-      ClasseSessao: `${tipoSessao} de ${subtipoSessao}`,
+      ClasseSessao: classeSessaoFormatada,
       DiaSessao: sessionDate.toLocaleDateString("pt-BR", {
         dateStyle: "long",
         timeZone: "UTC",
@@ -296,12 +303,10 @@ export const updateSession = async (req, res) => {
     res.status(200).json(session);
   } catch (error) {
     console.error("Erro em updateSession:", error);
-    res
-      .status(500)
-      .json({
-        message: "Erro ao atualizar sessão.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao atualizar sessão.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -359,12 +364,10 @@ export const deleteSession = async (req, res) => {
   } catch (error) {
     await transaction.rollback();
     console.error("Erro em deleteSession:", error);
-    res
-      .status(500)
-      .json({
-        message: "Erro ao deletar sessão.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao deletar sessão.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -375,11 +378,9 @@ export const updateSessionAttendance = async (req, res) => {
   const { attendees } = req.body;
   const { id } = req.params;
   if (!Array.isArray(attendees)) {
-    return res
-      .status(400)
-      .json({
-        message: 'O corpo da requisição deve conter um array de "attendees".',
-      });
+    return res.status(400).json({
+      message: 'O corpo da requisição deve conter um array de "attendees".',
+    });
   }
   const t = await db.sequelize.transaction();
   try {
@@ -399,12 +400,10 @@ export const updateSessionAttendance = async (req, res) => {
   } catch (error) {
     await t.rollback();
     console.error("Erro ao atualizar presenças:", error);
-    res
-      .status(500)
-      .json({
-        message: "Erro ao atualizar a lista de presença.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao atualizar a lista de presença.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -422,12 +421,10 @@ export const manageSessionVisitor = async (req, res) => {
     res.status(201).json(visitor);
   } catch (error) {
     console.error("Erro ao adicionar visitante:", error);
-    res
-      .status(500)
-      .json({
-        message: "Erro ao adicionar visitante à sessão.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao adicionar visitante à sessão.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -445,60 +442,152 @@ export const removeSessionVisitor = async (req, res) => {
     res.status(200).json({ message: "Visitante removido com sucesso." });
   } catch (error) {
     console.error("Erro ao remover visitante:", error);
-    res
-      .status(500)
-      .json({
-        message: "Erro ao remover visitante.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao remover visitante.",
+      errorDetails: error.message,
+    });
   }
 };
 
 /**
- * Gera o balaústre para uma sessão.
+ * Gera o balaústre para uma sessão, preenchendo todos os dados necessários.
  */
 export const gerarBalaustreSessao = async (req, res) => {
   const { id } = req.params;
   try {
     const sessao = await db.MasonicSession.findByPk(id, {
-      include: [{ model: db.Balaustre, as: "Balaustre" }],
+      include: [
+        { model: db.Balaustre, as: "Balaustre" },
+        {
+          model: db.LodgeMember,
+          as: "responsavelJantar",
+          include: [
+            {
+              model: db.FamilyMember,
+              as: "familiares",
+              where: { parentesco: "Cônjuge" },
+              required: false,
+            },
+          ],
+        },
+      ],
     });
-    if (!sessao)
-      return res.status(404).json({ message: "Sessão não encontrada." });
 
+    if (!sessao) {
+      return res.status(404).json({ message: "Sessão não encontrada." });
+    }
+
+    // Deleta o balaústre antigo, se existir
     if (sessao.Balaustre && sessao.Balaustre.googleDocId) {
       await deleteGoogleFile(sessao.Balaustre.googleDocId);
       await sessao.Balaustre.destroy();
     }
 
-    // Coleta de dados para o template...
-    const templateData = {
-      /* ... (preencha com os dados reais) ... */
+    const { tipoSessao, subtipoSessao, dataSessao } = sessao;
+    const sessionDate = new Date(dataSessao);
+
+    // --- Coleta de Dados Detalhada ---
+
+    // 1. Nomes dos oficiais (busca o cargo ativo que não tem data de término)
+    const findOficial = async (nomeCargo) => {
+      const cargo = await db.CargoExercido.findOne({
+        where: { nomeCargo, dataTermino: null },
+        include: [{ model: db.LodgeMember, attributes: ["NomeCompleto"] }],
+        order: [["dataInicio", "DESC"]], // Garante pegar o mais recente se houver dados inconsistentes
+      });
+      return cargo?.LodgeMember?.NomeCompleto || "(A preencher)";
     };
 
-    const { googleDocId, pdfPath } = await createBalaustreFromTemplate(
-      templateData
-    );
+    const [veneravel, primeiroVigilante, segundoVigilante, orador, secretario, tesoureiro, chanceler] = await Promise.all([
+      findOficial("Venerável Mestre"),
+      findOficial("Primeiro Vigilante"),
+      findOficial("Segundo Vigilante"),
+      findOficial("Orador"),
+      findOficial("Secretário"),
+      findOficial("Tesoureiro"),
+      findOficial("Chanceler"),
+    ]);
 
-    const novoBalaustre = await db.Balaustre.create({
-      sessionId: id,
-      googleDocId,
-      caminhoPdfLocal: pdfPath,
+    // 2. Contagens
+    const numeroIrmaosQuadro = await db.SessionAttendee.count({
+      where: { sessionId: id, statusPresenca: "Presente" },
+    });
+    const numeroVisitantes = await db.VisitanteSessao.count({
+      where: { masonicSessionId: id },
     });
 
-    res
-      .status(201)
-      .json({
-        message: "Balaústre gerado com sucesso!",
-        balaustre: novoBalaustre,
-      });
+    // 3. Responsável pelo Jantar
+    const nomeConjuge = sessao.responsavelJantar?.familiares?.[0]?.nomeCompleto || "não informada";
+    const nomeFinalResponsavel = sessao.responsavelJantar
+      ? `${sessao.responsavelJantar.NomeCompleto} e Cunhada ${nomeConjuge}`
+      : "Oferecido pela Loja";
+
+    // 4. Formatação da Classe da Sessão
+    let classeSessaoFormatada;
+    const tipoSessaoLowerCase = tipoSessao.toLowerCase();
+    if (["pública", "comemorativa"].includes(tipoSessaoLowerCase)) {
+      classeSessaoFormatada = `Sessão ${tipoSessao}`;
+    } else {
+      classeSessaoFormatada = `Sessão ${tipoSessao} no Grau de ${subtipoSessao} Maçom`;
+    }
+
+    // 5. Construção do Objeto de Dados para o Template
+    const dadosParaTemplate = {
+      NumeroBalaustre: sessao.id,
+      ClasseSessao: classeSessaoFormatada,
+      DiaSessao: sessionDate.toLocaleDateString("pt-BR", { dateStyle: "long", timeZone: "UTC" }),
+      DataSessaoAnterior: "(A preencher)",
+      HoraInicioSessao: "19h30",
+      HoraEncerramento: "(A preencher)",
+      DataAssinatura: `Anápolis-Goiás, ${sessionDate.toLocaleDateString("pt-BR", { dateStyle: "long", timeZone: "UTC" })}`,
+      Veneravel: veneravel,
+      PrimeiroVigilante: primeiroVigilante,
+      SegundoVigilante: segundoVigilante,
+      Orador: orador,
+      Secretario: secretario,
+      Tesoureiro: tesoureiro,
+      Chanceler: chanceler,
+      ResponsavelJantar: nomeFinalResponsavel,
+      NumeroIrmaosQuadro: numeroIrmaosQuadro,
+      NumeroVisitantes: numeroVisitantes,
+      EmendasBalaustreAnterior: "Sem",
+      ExpedienteRecebido: "(A preencher)",
+      ExpedienteExpedido: "(A preencher)",
+      SacoProposta: "(A preencher)",
+      OrdemDia: "(A preencher)",
+      TempoInstrucao: "(A preencher)",
+      TroncoBeneficiencia: "0",
+      Palavra: "(A preencher)",
+      Emendas: "(A preencher)",
+      data_sessao_extenso: sessionDate.toLocaleDateString("pt-BR", { dateStyle: "long", timeZone: "UTC" }),
+      dia_semana: sessionDate.toLocaleDateString("pt-BR", { weekday: "long", timeZone: "UTC" }),
+      hora_sessao: "19h30",
+      tipo_sessao: tipoSessao,
+      grau_sessao: subtipoSessao,
+    };
+
+    // --- Geração e Salvamento do Novo Balaústre ---
+    const { googleDocId, pdfPath } = await createBalaustreFromTemplate(dadosParaTemplate);
+
+    const novoBalaustre = await db.Balaustre.create({
+      numero: sessao.id.toString(),
+      ano: sessionDate.getFullYear(),
+      path: pdfPath,
+      MasonicSessionId: id,
+      googleDocId: googleDocId,
+      caminhoPdfLocal: pdfPath,
+      dadosFormulario: dadosParaTemplate, // Salva os dados usados
+    });
+
+    res.status(201).json({
+      message: "Balaústre gerado/atualizado com sucesso!",
+      balaustre: novoBalaustre,
+    });
   } catch (error) {
     console.error("Erro ao gerar Balaústre:", error);
-    res
-      .status(500)
-      .json({
-        message: "Erro ao gerar balaústre.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao gerar o balaústre.",
+      errorDetails: error.message,
+    });
   }
 };

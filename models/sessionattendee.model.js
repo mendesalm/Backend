@@ -1,23 +1,43 @@
 // backend/models/sessionattendee.model.js
 export default (sequelize, DataTypes) => {
-  const SessionAttendee = sequelize.define('SessionAttendee', {
-    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true, allowNull: false },
-    // As colunas sessionId e lodgeMemberId são criadas pela migração e
-    // gerenciadas pelas associações belongsToMany nos modelos LodgeMember e MasonicSession.
-    // Não é necessário definir 'associate' aqui se ele for apenas uma tabela de junção simples.
-  }, {
-    timestamps: true,
-    tableName: 'SessionAttendees',
-  });
+  const SessionAttendee = sequelize.define(
+    "SessionAttendee",
+    {
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
+      },
+      // As colunas de chave estrangeira (sessionId, lodgeMemberId) são gerenciadas pelas associações.
 
-  // SessionAttendee.associate = function(models) {
-  //   // Se precisar de associações explícitas PARA o modelo SessionAttendee:
-  //   if (models.LodgeMember) {
-  //     SessionAttendee.belongsTo(models.LodgeMember, { foreignKey: 'lodgeMemberId' });
-  //   }
-  //   if (models.MasonicSession) {
-  //     SessionAttendee.belongsTo(models.MasonicSession, { foreignKey: 'sessionId' });
-  //   }
-  // };
+      // --- ADIÇÃO NECESSÁRIA AQUI ---
+      statusPresenca: {
+        type: DataTypes.ENUM("Presente", "Justificado", "Ausente"),
+        allowNull: false,
+        defaultValue: "Ausente",
+      },
+      // --- FIM DA ADIÇÃO ---
+    },
+    {
+      timestamps: true,
+      tableName: "SessionAttendees",
+    }
+  );
+
+  // A associação não precisa de mudanças
+  SessionAttendee.associate = function (models) {
+    if (models.LodgeMember) {
+      SessionAttendee.belongsTo(models.LodgeMember, {
+        foreignKey: "lodgeMemberId",
+      });
+    }
+    if (models.MasonicSession) {
+      SessionAttendee.belongsTo(models.MasonicSession, {
+        foreignKey: "sessionId",
+      });
+    }
+  };
+
   return SessionAttendee;
 };
