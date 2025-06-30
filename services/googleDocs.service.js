@@ -107,6 +107,22 @@ export async function createBalaustreFromTemplate(data, masonicSessionId) {
     throw new Error("ID do template de Balaústre não definido no .env");
   }
 
+  // 1. Obter e incrementar o número do balaústre
+  let currentBalaustreNumber = 1; // Valor padrão
+  const config = await db.Configuracao.findByPk('nextBalaustreNumber');
+  if (config && config.valor) {
+    currentBalaustreNumber = parseInt(config.valor);
+  }
+
+  // Atribuir o número ao objeto de dados
+  data.NumeroBalaustre = currentBalaustreNumber;
+
+  // Incrementar e salvar o próximo número
+  await db.Configuracao.upsert({
+    chave: 'nextBalaustreNumber',
+    valor: String(currentBalaustreNumber + 1),
+  });
+
   // Mapeamento de cargos para os placeholders do template
   const cargoPlaceholderMapping = {
     "Venerável Mestre": "Veneravel",
@@ -149,7 +165,6 @@ export async function createBalaustreFromTemplate(data, masonicSessionId) {
             data[placeholder] = attendee.membro.NomeCompleto;
           }
         });
-        });
       }
     });
   }
@@ -191,7 +206,8 @@ export async function createBalaustreFromTemplate(data, masonicSessionId) {
         processed.ClasseSessao_Titulo = String(d.ClasseSessao_Titulo).toUpperCase();
       }
       if (d.ClasseSessao_Corpo) {
-        processed.ClasseSessao_Corpo = String(d.ClasseSessao_Corpo).toLowerCase();
+        processed.ClasseSessao_Corpo = String(d.ClasseSessao_Co
+rpo).toLowerCase();
       }
     }
     return processed;
