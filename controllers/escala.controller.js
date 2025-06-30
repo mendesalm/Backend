@@ -51,7 +51,7 @@ export const getProximoResponsavel = async (req, res) => {
     if (!proximo) {
       return res.status(404).json({
         message:
-          "Nenhum próximo responsável ativo encontrado na escala. Talvez seja necessário reiniciar a escala.",
+          "Nenhum responsável ativo encontrado na escala. Verifique se existem membros na escala com o status 'Ativo'.",
       });
     }
     res.status(200).json(proximo);

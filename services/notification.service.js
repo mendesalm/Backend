@@ -1,4 +1,5 @@
 // services/notification.service.js
+import path from "path";
 import db from "../models/index.js";
 import { Op, fn, col } from "sequelize";
 import { sendEmail } from "../utils/emailSender.js";

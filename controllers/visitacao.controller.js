@@ -92,15 +92,18 @@ export const getVisitaById = async (req, res) => {
 // Atualizar uma visita
 export const updateVisita = async (req, res) => {
   try {
+    const { id } = req.params;
+    const lodgeMemberId = req.user.id; // Get the authenticated user's ID
+
     const [updated] = await db.Visita.update(req.body, {
-      where: { id: req.params.id },
+      where: { id: id, lodgeMemberId: lodgeMemberId },
     }); // Usa db.Visita
     if (!updated) {
       return res
         .status(404)
-        .json({ message: "Registro de visita não encontrado." });
+        .json({ message: "Registro de visita não encontrado ou não pertence a este maçom." });
     }
-    const updatedVisita = await db.Visita.findByPk(req.params.id); // Usa db.Visita
+    const updatedVisita = await db.Visita.findByPk(id); // Usa db.Visita
     res.status(200).json(updatedVisita);
   } catch (error) {
     if (error.name === "SequelizeValidationError") {
@@ -123,11 +126,14 @@ export const updateVisita = async (req, res) => {
 // Deletar uma visita
 export const deleteVisita = async (req, res) => {
   try {
-    const deleted = await db.Visita.destroy({ where: { id: req.params.id } }); // Usa db.Visita
+    const { id } = req.params;
+    const lodgeMemberId = req.user.id; // Get the authenticated user's ID
+
+    const deleted = await db.Visita.destroy({ where: { id: id, lodgeMemberId: lodgeMemberId } }); // Usa db.Visita
     if (!deleted) {
       return res
         .status(404)
-        .json({ message: "Registro de visita não encontrado." });
+        .json({ message: "Registro de visita não encontrado ou não pertence a este maçom." });
     }
     res.status(204).send(); // 204 No Content
   } catch (error) {

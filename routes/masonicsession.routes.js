@@ -2,6 +2,7 @@
 import express from "express";
 import authMiddleware from "../middlewares/auth.middleware.js";
 import { authorizeByFeature } from "../middlewares/authorizeByFeature.middleware.js";
+import multer from "multer";
 
 // 1. Importa todas as funções necessárias do controller
 import {
@@ -25,6 +26,7 @@ import {
 } from "../validators/masonicsession.validator.js";
 
 const router = express.Router();
+const upload = multer();
 
 // Aplica autenticação a todas as rotas deste ficheiro
 router.use(authMiddleware);
@@ -36,6 +38,7 @@ router.get("/", authorizeByFeature("visualizarSessoes"), getAllSessions);
 router.post(
   "/",
   authorizeByFeature("criarNovaSessao"),
+  upload.none(), // Adiciona o middleware do Multer para lidar com multipart/form-data
   validateSessionCreation,
   createSession
 );

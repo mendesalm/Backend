@@ -55,7 +55,10 @@ export const updateBalaustre = async (req, res) => {
     }
 
     // Cria um novo documento a partir do template com os novos dados (incluindo as contagens manuais)
-    const { googleDocId, pdfPath } = await createBalaustreFromTemplate(newData);
+    const { googleDocId, pdfPath } = await createBalaustreFromTemplate(
+      newData,
+      balaustre.MasonicSessionId
+    );
 
     // Atualiza o registro no banco de dados com os novos IDs e dados
     balaustre.googleDocId = googleDocId;
@@ -77,12 +80,13 @@ export const updateBalaustre = async (req, res) => {
         balaustre,
       });
   } catch (error) {
-    console.error("Erro ao atualizar o balaústre:", error);
+    console.error("Erro ao atualizar o balaústre:", error.stack);
     res
       .status(500)
       .json({
         message: "Falha ao atualizar o balaústre.",
         errorDetails: error.message,
+        stack: error.stack,
       });
   }
 };

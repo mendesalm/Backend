@@ -14,28 +14,34 @@ module.exports = {
     database: process.env.DB_NAME,
     host: process.env.DB_HOST,
     dialect: process.env.DB_DIALECT,
-    port: process.env.DB_PORT || 3306 // Adicionar a porta do .env também
+    port: process.env.DB_PORT || 3306,
+    timezone: '-03:00', // Define o fuso horário para o Brasil
+    dialectOptions: {
+      useUTC: false, // Para MySQL, garante que as datas sejam tratadas como locais
+    },
   },
   test: {
-    // Melhor prática: Usar variáveis de ambiente separadas para o banco de testes
-    // Ex: TEST_DB_USER, TEST_DB_PASS, TEST_DB_NAME
-    // Por enquanto, vamos usar as mesmas do desenvolvimento conforme seu arquivo original.
     username: process.env.DB_USER,
     password: process.env.DB_PASS,
     database: process.env.DB_NAME,
     host: process.env.DB_HOST,
     dialect: process.env.DB_DIALECT,
-    port: process.env.DB_PORT || 3306
+    port: process.env.DB_PORT || 3306,
+    timezone: '-03:00',
+    dialectOptions: {
+      useUTC: false,
+    },
   },
   production: {
-    // Melhor prática: Usar variáveis de ambiente separadas e mais seguras para produção
-    // Ex: PROD_DB_USER, PROD_DB_PASS, PROD_DB_HOST, PROD_DB_NAME
-    // Por enquanto, vamos usar as mesmas do desenvolvimento conforme seu arquivo original.
     username: process.env.DB_USER,
     password: process.env.DB_PASS,
     database: process.env.DB_NAME,
     host: process.env.DB_HOST,
     dialect: process.env.DB_DIALECT,
-    port: process.env.DB_PORT || 3306
+    port: process.env.DB_PORT || 3306,
+    timezone: '-03:00',
+    dialectOptions: {
+      useUTC: false,
+    },
   }
 };

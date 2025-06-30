@@ -1,62 +1,30 @@
 import db from "../models/index.js";
 
 /**
- * --- LÓGICA DE AVANÇO REATORADA E OBJETIVA ---
- * Avança a escala sequencial, encontra o próximo membro 'Ativo' na ordem,
- * atualiza seu status para 'Cumprido', move-o para o final da fila, e retorna
- * seus dados completos (incluindo o cônjuge).
- * @param {object} transaction - A transação do Sequelize para garantir a atomicidade.
- * @returns {Promise<object|null>} O objeto do membro responsável, ou null se a escala estiver vazia.
+ * --- LÓGICA DE AVANÇO CIRCULAR AUTOMÁTICA ---
+ * Avança a escala, move o responsável para o final da fila e retorna os dados
+ * do membro e o ID do registro da escala para vinculação.
+ * @param {object} transaction - A transação do Sequelize.
+ * @returns {Promise<object|null>} Objeto com { membroResponsavel, responsabilidadeJantarId } ou null.
  */
 export const avancarEscalaSequencialEObterResponsavel = async (transaction) => {
   try {
     const { ResponsabilidadeJantar, LodgeMember, FamilyMember, sequelize } = db;
 
-    // 1. Encontra o próximo da fila
-    let proximoNaEscala = await ResponsabilidadeJantar.findOne({
+    const proximoNaEscala = await ResponsabilidadeJantar.findOne({
       where: { status: "Ativo", sessaoDesignadaId: null },
       order: [["ordem", "ASC"]],
       transaction,
     });
 
-    // Se ninguém for encontrado, é o fim do ciclo. Tente reiniciar.
     if (!proximoNaEscala) {
-      console.log("Fim do ciclo da escala. Tentando reiniciar...");
-
-      // Reseta todos os membros "Cumprido" de volta para "Ativo"
-      await ResponsabilidadeJantar.update(
-        { status: "Ativo" },
-        {
-          where: {
-            status: "Cumprido",
-            sessaoDesignadaId: null, // Apenas reinicia os da escala sequencial
-          },
-          transaction,
-        }
-      );
-
-      console.log(
-        "Escala reiniciada. Buscando o próximo responsável novamente."
-      );
-
-      // Tenta encontrar o próximo da fila novamente após o reset
-      proximoNaEscala = await ResponsabilidadeJantar.findOne({
-        where: { status: "Ativo", sessaoDesignadaId: null },
-        order: [["ordem", "ASC"]],
-        transaction,
-      });
-
-      // Se ainda assim não encontrar ninguém, a escala está realmente vazia.
-      if (!proximoNaEscala) {
-        console.log("A escala está vazia. Nenhum responsável para designar.");
-        return null;
-      }
+      console.log("Nenhum membro ativo na escala para designar.");
+      return null;
     }
 
-    // Guarda o ID do responsável antes de qualquer alteração
     const responsavelId = proximoNaEscala.lodgeMemberId;
+    const responsabilidadeJantarId = proximoNaEscala.id;
 
-    // 2. Encontra a ordem mais alta na escala
     const maxOrdemResult = await ResponsabilidadeJantar.findOne({
       attributes: [[sequelize.fn("max", sequelize.col("ordem")), "maxOrdem"]],
       where: { sessaoDesignadaId: null },
@@ -65,25 +33,11 @@ export const avancarEscalaSequencialEObterResponsavel = async (transaction) => {
     });
     const novaOrdem = (maxOrdemResult.maxOrdem || 0) + 1;
 
-    // 3. --- CORREÇÃO OBJETIVA ---
-    // Em vez de alterar o objeto e salvar, fazemos um UPDATE direto no banco
-    // usando o ID do registro da escala. Isso garante a alteração do status.
     await ResponsabilidadeJantar.update(
-      {
-        ordem: novaOrdem,
-        status: "Cumprido",
-      },
-      {
-        where: { id: proximoNaEscala.id },
-        transaction,
-      }
+      { ordem: novaOrdem },
+      { where: { id: responsabilidadeJantarId }, transaction }
     );
 
-    console.log(
-      `Registro da escala ID ${proximoNaEscala.id} movido para a ordem ${novaOrdem} com status 'Cumprido'.`
-    );
-
-    // 4. Busca os dados completos do membro para retornar
     const membroResponsavel = await LodgeMember.findByPk(responsavelId, {
       include: [
         {
@@ -97,15 +51,17 @@ export const avancarEscalaSequencialEObterResponsavel = async (transaction) => {
       transaction,
     });
 
-    if (membroResponsavel) {
-      console.log(
-        `Escala avançada. Responsável da sessão atual: ${membroResponsavel.NomeCompleto}`
-      );
-    }
+    console.log(
+      `Escala avançada para o membro: ${membroResponsavel.NomeCompleto}. ID da responsabilidade: ${responsabilidadeJantarId}`
+    );
 
-    return membroResponsavel;
+    // Retorna tanto os dados do membro quanto o ID do registro da escala modificado
+    return { membroResponsavel, responsabilidadeJantarId };
   } catch (error) {
-    console.error("Erro no serviço ao avançar a escala de jantares:", error);
+    console.error(
+      "Erro no serviço ao avançar a escala de jantares (lógica circular):",
+      error
+    );
     throw error;
   }
 };

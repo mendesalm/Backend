@@ -24,15 +24,23 @@ const manageFamiliares = async (lodgeMemberId, familiaresData, transaction) => {
 
   for (const familiarData of familiaresData) {
     const data = { ...familiarData, lodgeMemberId };
-    if (familiarData.id) {
-      const familiar = await db.FamilyMember.findByPk(familiarData.id, {
-        transaction,
-      });
-      if (familiar) {
-        await familiar.update(data, { transaction });
+    if (data.email === '') {
+      data.email = null;
+    }
+    try {
+      if (familiarData.id) {
+        const familiar = await db.FamilyMember.findByPk(familiarData.id, {
+          transaction,
+        });
+        if (familiar) {
+          await familiar.update(data, { transaction });
+        }
+      } else {
+        await db.FamilyMember.create(data, { transaction });
       }
-    } else {
-      await db.FamilyMember.create(data, { transaction });
+    } catch (error) {
+      console.error("Erro ao processar familiar:", familiarData, error);
+      throw error; // Re-throw the error to be caught by the main transaction catch block
     }
   }
 };
@@ -156,27 +164,74 @@ export const updateMyProfile = async (req, res) => {
 export const createLodgeMember = async (req, res) => {
   const t = await db.sequelize.transaction();
   try {
-    const { familiares, ...memberData } = req.body;
+    console.log("LOG: Request body in createLodgeMember:", req.body);
+    const { familiares, SenhaHash, ...restOfMemberData } = req.body;
+
+    // Prepare member data, ensuring password is included if provided
+    const memberDataToCreate = { ...restOfMemberData, statusCadastro: "Aprovado" };
+
+    // Ensure SenhaHash is provided and not empty
+    if (!SenhaHash || SenhaHash.trim() === '') {
+      await t.rollback();
+      return res.status(400).json({ message: "A senha é obrigatória para criar um novo membro." });
+    }
+    memberDataToCreate.password = SenhaHash;
+
+    // Data cleaning
+    if (memberDataToCreate.Email) {
+      memberDataToCreate.Email = memberDataToCreate.Email.trim();
+    }
+    if (memberDataToCreate.CPF === '') {
+      memberDataToCreate.CPF = null;
+    }
+
+    // Convert empty strings for date fields to null
+    const dateFields = ['DataCasamento', 'DataFiliacao', 'DataRegularizacao'];
+    dateFields.forEach(field => {
+      if (memberDataToCreate[field] === '' || memberDataToCreate[field] === 'null') {
+        memberDataToCreate[field] = null;
+      }
+    });
+
     const newMember = await db.LodgeMember.create(
-      { ...memberData, statusCadastro: "Aprovado" },
+      memberDataToCreate, // Use the prepared object directly
       { transaction: t }
     );
-    if (familiares && familiares.length > 0) {
-      const familiaresData = familiares.map((f) => ({
+
+    let familiaresParsed = [];
+    if (req.body.familiares) {
+      if (typeof req.body.familiares === "string") {
+        try {
+          familiaresParsed = JSON.parse(req.body.familiares);
+        } catch (e) {
+          // If parsing fails, treat as empty array or handle error as appropriate
+          console.error("Failed to parse familiares string:", e);
+          familiaresParsed = [];
+        }
+      } else if (Array.isArray(req.body.familiares)) {
+        familiaresParsed = req.body.familiares;
+      }
+    }
+
+    if (familiaresParsed && familiaresParsed.length > 0) {
+      const familiaresData = familiaresParsed.map((f) => ({
         ...f,
         lodgeMemberId: newMember.id,
       }));
       await db.FamilyMember.bulkCreate(familiaresData, { transaction: t });
     }
+
     await t.commit();
-    const { password, ...memberResponse } = newMember.toJSON();
+    const { password: hashedPassword, ...memberResponse } = newMember.toJSON();
     res.status(201).json(memberResponse);
   } catch (error) {
     await t.rollback();
     console.error("Erro ao criar maçom (admin):", error);
+    console.error("Full error object:", error); // Log the full error object
+    console.error("Request body:", req.body); // Log the request body
     res
       .status(500)
-      .json({ message: "Erro ao criar maçom.", errorDetails: error.message });
+      .json({ message: "Erro ao criar maçom.", errorDetails: error.message, stack: error.stack });
   }
 };
 
@@ -282,7 +337,24 @@ export const updateLodgeMemberById = async (req, res) => {
       "FotoPessoal_Caminho",
     ];
 
+    console.log("LOG: Request body in updateLodgeMemberById:", req.body);
     let memberUpdates = pick(req.body, allowedAdminFields);
+
+    // Convert empty strings or 'null' for date fields to actual null
+    const dateFields = [
+      "DataCasamento",
+      "DataIniciacao",
+      "DataElevacao",
+      "DataExaltacao",
+      "DataFiliacao",
+      "DataRegularizacao",
+      "DataNascimento",
+    ];
+    dateFields.forEach((field) => {
+      if (memberUpdates[field] === "" || memberUpdates[field] === "null") {
+        memberUpdates[field] = null;
+      }
+    });
 
     if (req.file) {
       memberUpdates.FotoPessoal_Caminho = path
@@ -326,9 +398,12 @@ export const updateLodgeMemberById = async (req, res) => {
   } catch (error) {
     await t.rollback();
     console.error("Erro ao atualizar maçom por ID:", error);
+    console.error("Full error object:", error); // Log the full error object
+    console.error("Request body:", req.body); // Log the request body
     res.status(500).json({
       message: "Erro interno no servidor ao atualizar maçom.",
       errorDetails: error.message,
+      stack: error.stack, // Include stack trace for more detailed debugging
     });
   }
 };

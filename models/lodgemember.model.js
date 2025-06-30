@@ -21,7 +21,7 @@ export default (sequelize, DataTypes) => {
         validate: {
           // A validação agora funciona porque a função foi importada
           isCPFValido(value) {
-            if (value && !isValidCPF(value)) {
+            if (value && value.length > 0 && !isValidCPF(value)) {
               throw new Error("O CPF fornecido é inválido.");
             }
           },
@@ -98,12 +98,20 @@ export default (sequelize, DataTypes) => {
       DataFiliacao: {
         type: DataTypes.DATEONLY,
         allowNull: true,
-        validate: { isDate: { msg: "Data de filiação inválida." } },
       },
       DataRegularizacao: {
         type: DataTypes.DATEONLY,
         allowNull: true,
-        validate: { isDate: { msg: "Data de regularização inválida." } },
+        validate: {
+          isDateOrNull: (value) => {
+            if (value === null) {
+              return; // Allow null
+            }
+            if (isNaN(new Date(value).getTime())) {
+              throw new Error("Data de regularização inválida.");
+            }
+          },
+        },
       },
       // 3. CORREÇÃO: Padronizado para 'password' e mapeado para a coluna 'SenhaHash'
       password: {
@@ -138,8 +146,14 @@ export default (sequelize, DataTypes) => {
       timestamps: true,
       tableName: "LodgeMembers",
       hooks: {
-        // 4. CORREÇÃO: O hook agora observa a alteração no campo 'password'
-        beforeSave: async (member) => {
+        beforeCreate: async (member) => {
+          console.log("LOG: beforeCreate hook - member.password before hashing:", member.password);
+          if (member.password) {
+            const salt = await bcrypt.genSalt(10);
+            member.password = await bcrypt.hash(member.password, salt);
+          }
+        },
+        beforeUpdate: async (member) => {
           if (member.changed("password")) {
             const salt = await bcrypt.genSalt(10);
             member.password = await bcrypt.hash(member.password, salt);

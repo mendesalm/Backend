@@ -29,6 +29,7 @@ export default (sequelize, DataTypes) => {
   SessionAttendee.associate = function (models) {
     if (models.LodgeMember) {
       SessionAttendee.belongsTo(models.LodgeMember, {
+        as: "membro",
         foreignKey: "lodgeMemberId",
       });
     }

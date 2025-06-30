@@ -1,9 +1,9 @@
 // models/condecoracao.model.js
-import { DataTypes } from 'sequelize';
+import { DataTypes } from "sequelize";
 
 export default (sequelize) => {
   const Condecoracao = sequelize.define(
-    'Condecoracao',
+    "Condecoracao",
     {
       id: {
         type: DataTypes.INTEGER,
@@ -26,23 +26,23 @@ export default (sequelize) => {
         type: DataTypes.INTEGER,
         allowNull: false,
         references: {
-          model: 'LodgeMembers',
-          key: 'id',
+          model: "LodgeMembers",
+          key: "id",
         },
-        onUpdate: 'CASCADE',
-        onDelete: 'CASCADE', // Se um membro for deletado, suas condecorações também serão.
+        onUpdate: "CASCADE",
+        onDelete: "CASCADE", // Se um membro for deletado, suas condecorações também serão.
       },
     },
     {
-      tableName: 'Condecoracoes',
+      tableName: "Condecoracoes",
       timestamps: true,
     }
   );
 
   Condecoracao.associate = (models) => {
     Condecoracao.belongsTo(models.LodgeMember, {
-      foreignKey: 'lodgeMemberId',
-      as: 'membroCondecorado',
+      foreignKey: "lodgeMemberId",
+      as: "membroCondecorado",
     });
   };
 

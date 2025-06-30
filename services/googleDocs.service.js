@@ -1,4 +1,5 @@
 import { google } from "googleapis";
+import db from "../models/index.js";
 // --- CORREÇÃO APLICADA AQUI ---
 // Importamos todas as funções necessárias do módulo 'fs' de uma só vez.
 import { readFileSync, createWriteStream, mkdirSync, existsSync } from "fs";
@@ -100,34 +101,98 @@ async function createDocFromTemplate(
 
 // --- Funções Públicas Exportadas (sem alterações na lógica interna) ---
 
-export async function createBalaustreFromTemplate(data) {
+export async function createBalaustreFromTemplate(data, masonicSessionId) {
   const TEMPLATE_ID = process.env.GOOGLE_DOCS_BALAUSTRE_TEMPLATE_ID;
-  if (!TEMPLATE_ID)
+  if (!TEMPLATE_ID) {
     throw new Error("ID do template de Balaústre não definido no .env");
+  }
+
+  // Mapeamento de cargos para os placeholders do template
+  const cargoPlaceholderMapping = {
+    "Venerável Mestre": "Veneravel",
+    "Primeiro Vigilante": "PrimeiroVigilante",
+    "Segundo Vigilante": "SegundoVigilante",
+    Orador: "Orador",
+    Secretário: "Secretario",
+    Tesoureiro: "Tesoureiro",
+    Chanceler: "Chanceler",
+  };
+
+  // Busca os nomes dos oficiais da sessão se o masonicSessionId for fornecido
+  if (masonicSessionId) {
+    const attendees = await db.SessionAttendee.findAll({
+      where: { sessionId: masonicSessionId },
+      include: [
+        {
+          model: db.LodgeMember,
+          as: "membro",
+          include: [
+            {
+              model: db.CargoExercido,
+              as: "cargos",
+              where: {
+                dataTermino: null, // Apenas cargos ativos
+              },
+              required: false,
+            },
+          ],
+        },
+      ],
+    });
+
+    attendees.forEach((attendee) => {
+      if (attendee.membro && attendee.membro.cargos) {
+        attendee.membro.cargos.forEach((cargo) => {
+          const placeholder = cargoPlaceholderMapping[cargo.nomeCargo];
+          if (placeholder && !data[placeholder]) {
+            // Preenche apenas se não foi enviado pelo frontend
+            data[placeholder] = attendee.membro.NomeCompleto;
+          }
+        });
+        });
+      }
+    });
+  }
 
   const prepareDataForBalaustre = (d) => {
     const processed = { ...d };
+
+    // Garante que todos os campos do template existam para a substituição.
+    const allTemplateFields = [
+      "NumeroBalaustre", "ClasseSessao_Titulo", "HoraInicioSessao", "DiaSessao",
+      "ClasseSessao_Corpo", "NumeroIrmaosQuadro", "NumeroVisitantes", "Veneravel",
+      "PrimeiroVigilante", "SegundoVigilante", "Orador", "Secretario", "Tesoureiro",
+      "Chanceler", "DataSessaoAnterior", "EmendasBalaustreAnterior", "ExpedienteRecebido",
+      "ExpedienteExpedido", "SacoProposta", "OrdemDia", "Escrutinio", "TempoInstrucao",
+      "TroncoBeneficiencia", "Palavra", "HoraEncerramento", "DataAssinatura", "Emendas"
+    ];
+    allTemplateFields.forEach(field => {
+      if (!(field in processed)) {
+        processed[field] = "";
+      }
+    });
+
     const uppercaseFields = [
-      "Veneravel",
-      "PrimeiroVigilante",
-      "SegundoVigilante",
-      "Orador",
-      "Secretario",
-      "Tesoureiro",
-      "Chanceler",
+      "Veneravel", "PrimeiroVigilante", "SegundoVigilante", "Orador",
+      "Secretario", "Tesoureiro", "Chanceler",
     ];
     uppercaseFields.forEach((field) => {
-      if (processed[field])
+      if (processed[field]) {
         processed[field] = String(processed[field]).toUpperCase();
+      }
     });
-    if (processed.ClasseSessao) {
-      processed.ClasseSessao_Titulo = String(
-        processed.ClasseSessao
-      ).toUpperCase();
-      processed.ClasseSessao_Corpo = String(
-        processed.ClasseSessao
-      ).toLowerCase();
+
+    if (d.ClasseSessao) {
+      processed.ClasseSessao_Titulo = String(d.ClasseSessao).toUpperCase();
+      processed.ClasseSessao_Corpo = String(d.ClasseSessao).toLowerCase();
       delete processed.ClasseSessao;
+    } else {
+      if (d.ClasseSessao_Titulo) {
+        processed.ClasseSessao_Titulo = String(d.ClasseSessao_Titulo).toUpperCase();
+      }
+      if (d.ClasseSessao_Corpo) {
+        processed.ClasseSessao_Corpo = String(d.ClasseSessao_Corpo).toLowerCase();
+      }
     }
     return processed;
   };
