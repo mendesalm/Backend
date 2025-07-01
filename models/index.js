@@ -77,6 +77,7 @@ const modelDefinitions = [
     key: "ItemEmprestimoPatrimonio",
     file: "itemEmprestimoPatrimonio.model.js",
   },
+  { key: "DocumentoGerado", file: "documentoGerado.model.js" },
 ];
 
 const loadModel = async (modelFileName) => {

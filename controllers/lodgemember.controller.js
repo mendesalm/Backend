@@ -229,6 +229,19 @@ export const createLodgeMember = async (req, res) => {
     console.error("Erro ao criar maçom (admin):", error);
     console.error("Full error object:", error); // Log the full error object
     console.error("Request body:", req.body); // Log the request body
+    if (error instanceof db.Sequelize.ValidationError) {
+      const errors = error.errors.map(err => ({
+        field: err.path,
+        message: err.message,
+        value: err.value
+      }));
+      return res.status(400).json({
+        message: "Erro de validação ao criar maçom.",
+        errors: errors,
+        stack: error.stack
+      });
+    }
+
     res
       .status(500)
       .json({ message: "Erro ao criar maçom.", errorDetails: error.message, stack: error.stack });
@@ -256,9 +269,33 @@ export const getAllLodgeMembers = async (req, res) => {
       where: whereClause,
       attributes: { exclude: ["password"] },
       order: [["NomeCompleto", "ASC"]],
+      include: [
+        {
+          model: db.CargoExercido,
+          as: "cargos",
+          required: false,
+        },
+      ],
     });
 
-    res.status(200).json(members);
+    const membersWithCurrentCargo = members.map((member) => {
+      const memberJson = member.toJSON();
+      const currentCargo = memberJson.cargos.find((cargo) => {
+        const dataInicio = new Date(cargo.dataInicio);
+        const dataTermino = cargo.dataTermino ? new Date(cargo.dataTermino) : null;
+        const now = new Date();
+
+        return (
+          dataInicio <= now &&
+          (dataTermino === null || dataTermino >= now)
+        );
+      });
+      memberJson.cargoAtual = currentCargo ? currentCargo.nomeCargo : null;
+      delete memberJson.cargos; // Remove the full cargos array if not needed
+      return memberJson;
+    });
+
+    res.status(200).json(membersWithCurrentCargo);
   } catch (error) {
     res
       .status(500)

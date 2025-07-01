@@ -206,8 +206,7 @@ export async function createBalaustreFromTemplate(data, masonicSessionId) {
         processed.ClasseSessao_Titulo = String(d.ClasseSessao_Titulo).toUpperCase();
       }
       if (d.ClasseSessao_Corpo) {
-        processed.ClasseSessao_Corpo = String(d.ClasseSessao_Co
-rpo).toLowerCase();
+        processed.ClasseSessao_Corpo = String(d.ClasseSessao_Corpo).toLowerCase();
       }
     }
     return processed;

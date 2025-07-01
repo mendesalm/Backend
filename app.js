@@ -41,6 +41,7 @@ import classificadoRoutes from "./routes/classificado.routes.js";
 import locacaoSalaoRoutes from "./routes/locacaoSalao.routes.js";
 import emprestimoPatrimonioRoutes from "./routes/emprestimoPatrimonio.routes.js";
 import chancelerRoutes from "./routes/chanceler.routes.js"; // 1. Importar a rota do chanceler
+import documentoGeradoRoutes from "./routes/documentoGerado.routes.js";
 // Importa o agendador de tarefas
 import { startScheduler } from "./scheduler.js";
 
@@ -115,6 +116,7 @@ const startServer = async () => {
     app.use("/api/locacoes", locacaoSalaoRoutes);
     app.use("/api/locacoes-patrimonio", emprestimoPatrimonioRoutes);
     app.use("/api/chanceler", chancelerRoutes);
+    app.use("/api/documentos-gerados", documentoGeradoRoutes);
     // Iniciar o servidor
     app.listen(PORT, () => {
       console.log(`Servidor backend rodando na porta ${PORT}`);
