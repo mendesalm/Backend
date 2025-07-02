@@ -1,0 +1,8 @@
+feat: Implementação de Documentos Gerados e melhorias diversas
+
+- Adiciona funcionalidade para documentos gerados (model, controller, service, rota, migração).
+- Corrige erro de digitação em `googleDocs.service.js`.
+- Adiciona validação de erro em `lodgemember.controller.js` para criação de membros.
+- Inclui cargo atual em `getAllLodgeMembers`.
+- Remove código duplicado e obsoleto em `balaustre.controller.js`.
+- Adiciona `type: module` ao `package.json`.
