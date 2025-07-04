@@ -42,6 +42,8 @@ import locacaoSalaoRoutes from "./routes/locacaoSalao.routes.js";
 import emprestimoPatrimonioRoutes from "./routes/emprestimoPatrimonio.routes.js";
 import chancelerRoutes from "./routes/chanceler.routes.js"; // 1. Importar a rota do chanceler
 import documentoGeradoRoutes from "./routes/documentoGerado.routes.js";
+import solicitacaoRoutes from "./routes/solicitacao.routes.js";
+
 // Importa o agendador de tarefas
 import { startScheduler } from "./scheduler.js";
 
@@ -94,6 +96,7 @@ const startServer = async () => {
     app.use("/api/legislacoes", legislacaoRoutes);
     app.use("/api/harmonia", harmoniaRoutes);
     app.use("/api/biblioteca", bibliotecaRoutes);
+    app.use("/api/biblioteca/solicitacoes", solicitacaoRoutes);
     app.use("/api/cargoexercido", cargoExercidoRoutes);
     app.use("/api/comissoes", comissaoRoutes);
     app.use("/api/documentos", documentoRoutes);

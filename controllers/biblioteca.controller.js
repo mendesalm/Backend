@@ -38,14 +38,16 @@ export const createLivro = async (req, res) => {
       autores,
       editora,
       anoPublicacao,
-      ISBN,
+      isbn,
       numeroPaginas,
       classificacao,
-      observacoes,
+      descricao,
+      capaUrl,
     } = req.body;
 
     const lodgeMemberId = req.user.id;
     let filePath = null;
+
     if (req.file) {
       filePath = req.file.path
         .replace(/\\/g, "/")
@@ -53,6 +55,8 @@ export const createLivro = async (req, res) => {
           req.file.path.replace(/\\/g, "/").indexOf("uploads/") +
             "uploads/".length
         );
+    } else if (capaUrl) {
+      filePath = capaUrl;
     }
 
     const novoLivro = await db.Biblioteca.create({
@@ -60,15 +64,14 @@ export const createLivro = async (req, res) => {
       autores,
       editora,
       anoPublicacao: anoPublicacao ? parseInt(anoPublicacao, 10) : null,
-      ISBN,
+      ISBN: isbn,
       numeroPaginas: numeroPaginas ? parseInt(numeroPaginas, 10) : null,
       classificacao,
-      observacoes,
+      observacoes: descricao,
       path: filePath,
       status: "Disponível",
       lodgeMemberId,
     });
-
     res.status(201).json(novoLivro);
   } catch (error) {
     console.error("Erro ao criar livro:", error);
@@ -94,8 +97,16 @@ export const createLivro = async (req, res) => {
  */
 export const getAllLivros = async (req, res) => {
   try {
-    const { search, status } = req.query;
+    const { search, status, withHistorico } = req.query;
     const whereClause = {};
+    const includeClause = [
+      {
+        model: db.LodgeMember,
+        as: "cadastradoPor",
+        attributes: ["id", "NomeCompleto"],
+        required: false,
+      },
+    ];
 
     if (status) {
       whereClause.status = status;
@@ -109,20 +120,29 @@ export const getAllLivros = async (req, res) => {
       ];
     }
 
+    if (withHistorico === "true") {
+      includeClause.push({
+        model: db.Emprestimo,
+        as: "historicoEmprestimos",
+        required: false,
+        include: [
+          {
+            model: db.LodgeMember,
+            as: "membro",
+            attributes: ["id", "NomeCompleto"],
+          },
+        ],
+        order: [["dataEmprestimo", "DESC"]],
+      });
+    }
+
     const livros = await db.Biblioteca.findAll({
       where: whereClause,
-      include: [
-        {
-          model: db.LodgeMember,
-          as: "cadastradoPor",
-          attributes: ["id", "NomeCompleto"],
-          required: false,
-        },
-      ],
+      include: includeClause,
       order: [["titulo", "ASC"]],
     });
 
-    res.status(200).json(livros); // Retorna o array diretamente
+    res.status(200).json(livros);
   } catch (error) {
     console.error("Erro ao buscar livros:", error);
     res

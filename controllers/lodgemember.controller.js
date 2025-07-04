@@ -275,6 +275,11 @@ export const getAllLodgeMembers = async (req, res) => {
           as: "cargos",
           required: false,
         },
+        {
+          model: db.FamilyMember,
+          as: "familiares",
+          required: false,
+        },
       ],
     });
 
