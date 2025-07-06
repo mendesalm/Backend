@@ -3,6 +3,7 @@ import {
   getEscala,
   updateOrdemEscala,
   getProximoResponsavel,
+  getProximosResponsaveis, // Adicionando a nova função
   inicializarEscala, // Adicionando a nova função
   adicionarMembroEscala,
   updateStatusEscala,
@@ -21,6 +22,7 @@ const canManage = authorizeByFeature("gerenciarEscalaJantar");
 // Rotas de Visualização
 router.get("/", canView, getEscala);
 router.get("/proximo-responsavel", canView, getProximoResponsavel);
+router.get("/proximos", canView, getProximosResponsaveis);
 
 // Rotas de Gerenciamento
 router.post("/inicializar", canManage, inicializarEscala);

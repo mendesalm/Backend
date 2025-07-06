@@ -144,9 +144,18 @@ export const getDashboardData = async (req, res) => {
   try {
     const { credencialAcesso, id: membroId } = req.user;
     let dashboardData = {};
-    const [proximosEventos, proximosAniversariantes] = await Promise.all([
+    const [proximosEventos, proximosAniversariantes, totalClassificados, totalAvisos] = await Promise.all([
       getProximosEventos(),
       getProximosAniversariantes(30),
+      db.Classificado.count(),
+      db.Aviso.count({
+        where: {
+          [Op.or]: [
+            { dataExpiracao: { [Op.gte]: new Date() } },
+            { dataExpiracao: null }
+          ]
+        }
+      })
     ]);
 
     if (["Admin", "Webmaster", "Diretoria"].includes(credencialAcesso)) {
@@ -160,6 +169,8 @@ export const getDashboardData = async (req, res) => {
         tipo: "admin",
         resumoFinanceiro,
         totalMembros,
+        totalClassificados,
+        totalAvisos,
         proximosAniversariantes,
         proximosEventos,
       };
@@ -170,6 +181,8 @@ export const getDashboardData = async (req, res) => {
         emprestimosPendentes,
         proximosEventos,
         proximosAniversariantes,
+        totalClassificados,
+        totalAvisos,
       };
     }
     res.status(200).json(dashboardData);

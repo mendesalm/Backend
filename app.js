@@ -114,6 +114,7 @@ const startServer = async () => {
     app.use("/api/templates", templateRoutes);
     app.use("/api/balaustres", balaustreRoutes);
     app.use("/api/escala", escalaRoutes);
+    app.use("/api/escala-jantar", escalaRoutes);
     app.use("/api/visitantes", visitanteRoutes);
     app.use("/api/classificados", classificadoRoutes);
     app.use("/api/locacoes", locacaoSalaoRoutes);

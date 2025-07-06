@@ -65,6 +65,44 @@ export const getProximoResponsavel = async (req, res) => {
 };
 
 /**
+ * GET /api/escala-jantar/proximos
+ * Retorna os próximos 5 membros ativos na escala.
+ */
+export const getProximosResponsaveis = async (req, res) => {
+  try {
+    const proximos = await db.ResponsabilidadeJantar.findAll({
+      where: {
+        status: "Ativo",
+        sessaoDesignadaId: null,
+      },
+      order: [["ordem", "ASC"]],
+      limit: 5,
+      include: [
+        {
+          model: db.LodgeMember,
+          as: "membro",
+          attributes: ["id", "NomeCompleto"],
+        },
+      ],
+    });
+
+    if (!proximos || proximos.length === 0) {
+      return res.status(404).json({
+        message: "Nenhum responsável ativo encontrado na escala.",
+      });
+    }
+
+    res.status(200).json(proximos);
+  } catch (error) {
+    console.error("Erro ao buscar próximos responsáveis:", error);
+    res.status(500).json({
+      message: "Erro ao buscar próximos responsáveis.",
+      errorDetails: error.message,
+    });
+  }
+};
+
+/**
  * POST /api/escala/inicializar
  * Cria a escala inicial com todos os membros ativos em ordem alfabética.
  */
