@@ -6,6 +6,7 @@ import { authorizeByFeature } from "../middlewares/authorizeByFeature.middleware
 import {
   gerarCartaoManual,
   getPanelData,
+  getChanceryReportsPage,
 } from "../controllers/chanceler.controller.js";
 import { query } from "express-validator";
 import { validate } from "../utils/validationHelpers.js";
@@ -46,6 +47,12 @@ router.post(
   "/gerar-cartao",
   authorizeByFeature("gerenciarCartoesAniversario"),
   gerarCartaoManual
+);
+
+router.get(
+  "/reports",
+  authorizeByFeature("acessarRelatoriosChancelaria"),
+  getChanceryReportsPage
 );
 
 export default router;

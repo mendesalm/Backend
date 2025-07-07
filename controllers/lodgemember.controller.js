@@ -1,7 +1,9 @@
 // backend/controllers/lodgemember.controller.js
 import db from "../models/index.js";
 import { pick } from "../utils/pick.js";
-import path from "path"; // CORREÇÃO: Importa o módulo 'path' do Node.js
+import path from "path";
+// 1. IMPORTAR O SERVIÇO DE PERMISSÕES
+import { getAllowedFeaturesForUser } from "../services/permission.service.js";
 
 // Função auxiliar para gerir familiares numa transação
 const manageFamiliares = async (lodgeMemberId, familiaresData, transaction) => {
@@ -24,7 +26,7 @@ const manageFamiliares = async (lodgeMemberId, familiaresData, transaction) => {
 
   for (const familiarData of familiaresData) {
     const data = { ...familiarData, lodgeMemberId };
-    if (data.email === '') {
+    if (data.email === "") {
       data.email = null;
     }
     try {
@@ -40,13 +42,13 @@ const manageFamiliares = async (lodgeMemberId, familiaresData, transaction) => {
       }
     } catch (error) {
       console.error("Erro ao processar familiar:", familiarData, error);
-      throw error; // Re-throw the error to be caught by the main transaction catch block
+      throw error;
     }
   }
 };
 
 /**
- * Obtém o perfil do maçom autenticado.
+ * Obtém o perfil do maçom autenticado, agora incluindo as suas permissões.
  */
 export const getMyProfile = async (req, res) => {
   try {
@@ -59,7 +61,15 @@ export const getMyProfile = async (req, res) => {
     if (!member) {
       return res.status(404).json({ message: "Maçom não encontrado." });
     }
-    res.status(200).json(member.toJSON());
+
+    // 2. OBTER AS PERMISSÕES DO UTILIZADOR
+    const permissions = await getAllowedFeaturesForUser(member);
+
+    const memberJSON = member.toJSON();
+    // 3. ANEXAR O ARRAY DE PERMISSÕES À RESPOSTA
+    memberJSON.permissions = permissions;
+
+    res.status(200).json(memberJSON);
   } catch (error) {
     console.error("Erro ao buscar dados do perfil:", error);
     res.status(500).json({
@@ -125,11 +135,9 @@ export const updateMyProfile = async (req, res) => {
           familiaresParsed = JSON.parse(req.body.familiares);
         } catch (e) {
           await t.rollback();
-          return res
-            .status(400)
-            .json({
-              message: "O formato dos dados dos familiares é inválido.",
-            });
+          return res.status(400).json({
+            message: "O formato dos dados dos familiares é inválido.",
+          });
         }
       } else if (Array.isArray(req.body.familiares)) {
         familiaresParsed = req.body.familiares;
@@ -167,36 +175,39 @@ export const createLodgeMember = async (req, res) => {
     console.log("LOG: Request body in createLodgeMember:", req.body);
     const { familiares, SenhaHash, ...restOfMemberData } = req.body;
 
-    // Prepare member data, ensuring password is included if provided
-    const memberDataToCreate = { ...restOfMemberData, statusCadastro: "Aprovado" };
+    const memberDataToCreate = {
+      ...restOfMemberData,
+      statusCadastro: "Aprovado",
+    };
 
-    // Ensure SenhaHash is provided and not empty
-    if (!SenhaHash || SenhaHash.trim() === '') {
+    if (!SenhaHash || SenhaHash.trim() === "") {
       await t.rollback();
-      return res.status(400).json({ message: "A senha é obrigatória para criar um novo membro." });
+      return res
+        .status(400)
+        .json({ message: "A senha é obrigatória para criar um novo membro." });
     }
     memberDataToCreate.password = SenhaHash;
 
-    // Data cleaning
     if (memberDataToCreate.Email) {
       memberDataToCreate.Email = memberDataToCreate.Email.trim();
     }
-    if (memberDataToCreate.CPF === '') {
+    if (memberDataToCreate.CPF === "") {
       memberDataToCreate.CPF = null;
     }
 
-    // Convert empty strings for date fields to null
-    const dateFields = ['DataCasamento', 'DataFiliacao', 'DataRegularizacao'];
-    dateFields.forEach(field => {
-      if (memberDataToCreate[field] === '' || memberDataToCreate[field] === 'null') {
+    const dateFields = ["DataCasamento", "DataFiliacao", "DataRegularizacao"];
+    dateFields.forEach((field) => {
+      if (
+        memberDataToCreate[field] === "" ||
+        memberDataToCreate[field] === "null"
+      ) {
         memberDataToCreate[field] = null;
       }
     });
 
-    const newMember = await db.LodgeMember.create(
-      memberDataToCreate, // Use the prepared object directly
-      { transaction: t }
-    );
+    const newMember = await db.LodgeMember.create(memberDataToCreate, {
+      transaction: t,
+    });
 
     let familiaresParsed = [];
     if (req.body.familiares) {
@@ -204,7 +215,6 @@ export const createLodgeMember = async (req, res) => {
         try {
           familiaresParsed = JSON.parse(req.body.familiares);
         } catch (e) {
-          // If parsing fails, treat as empty array or handle error as appropriate
           console.error("Failed to parse familiares string:", e);
           familiaresParsed = [];
         }
@@ -227,24 +237,26 @@ export const createLodgeMember = async (req, res) => {
   } catch (error) {
     await t.rollback();
     console.error("Erro ao criar maçom (admin):", error);
-    console.error("Full error object:", error); // Log the full error object
-    console.error("Request body:", req.body); // Log the request body
+    console.error("Full error object:", error);
+    console.error("Request body:", req.body);
     if (error instanceof db.Sequelize.ValidationError) {
-      const errors = error.errors.map(err => ({
+      const errors = error.errors.map((err) => ({
         field: err.path,
         message: err.message,
-        value: err.value
+        value: err.value,
       }));
       return res.status(400).json({
         message: "Erro de validação ao criar maçom.",
         errors: errors,
-        stack: error.stack
+        stack: error.stack,
       });
     }
 
-    res
-      .status(500)
-      .json({ message: "Erro ao criar maçom.", errorDetails: error.message, stack: error.stack });
+    res.status(500).json({
+      message: "Erro ao criar maçom.",
+      errorDetails: error.message,
+      stack: error.stack,
+    });
   }
 };
 
@@ -275,11 +287,6 @@ export const getAllLodgeMembers = async (req, res) => {
           as: "cargos",
           required: false,
         },
-        {
-          model: db.FamilyMember,
-          as: "familiares",
-          required: false,
-        },
       ],
     });
 
@@ -287,16 +294,17 @@ export const getAllLodgeMembers = async (req, res) => {
       const memberJson = member.toJSON();
       const currentCargo = memberJson.cargos.find((cargo) => {
         const dataInicio = new Date(cargo.dataInicio);
-        const dataTermino = cargo.dataTermino ? new Date(cargo.dataTermino) : null;
+        const dataTermino = cargo.dataTermino
+          ? new Date(cargo.dataTermino)
+          : null;
         const now = new Date();
 
         return (
-          dataInicio <= now &&
-          (dataTermino === null || dataTermino >= now)
+          dataInicio <= now && (dataTermino === null || dataTermino >= now)
         );
       });
       memberJson.cargoAtual = currentCargo ? currentCargo.nomeCargo : null;
-      delete memberJson.cargos; // Remove the full cargos array if not needed
+      delete memberJson.cargos;
       return memberJson;
     });
 
@@ -308,9 +316,6 @@ export const getAllLodgeMembers = async (req, res) => {
   }
 };
 
-/**
- * Obtém os dados de um membro específico por ID.
- */
 export const getLodgeMemberById = async (req, res) => {
   try {
     const memberId = parseInt(req.params.id, 10);
@@ -331,9 +336,6 @@ export const getLodgeMemberById = async (req, res) => {
   }
 };
 
-/**
- * Atualiza os dados de um membro por ID (Admin).
- */
 export const updateLodgeMemberById = async (req, res) => {
   const t = await db.sequelize.transaction();
   try {
@@ -382,7 +384,6 @@ export const updateLodgeMemberById = async (req, res) => {
     console.log("LOG: Request body in updateLodgeMemberById:", req.body);
     let memberUpdates = pick(req.body, allowedAdminFields);
 
-    // Convert empty strings or 'null' for date fields to actual null
     const dateFields = [
       "DataCasamento",
       "DataIniciacao",
@@ -411,11 +412,9 @@ export const updateLodgeMemberById = async (req, res) => {
           familiaresParsed = JSON.parse(req.body.familiares);
         } catch (e) {
           await t.rollback();
-          return res
-            .status(400)
-            .json({
-              message: "O formato dos dados dos familiares é inválido.",
-            });
+          return res.status(400).json({
+            message: "O formato dos dados dos familiares é inválido.",
+          });
         }
       } else if (Array.isArray(req.body.familiares)) {
         familiaresParsed = req.body.familiares;
@@ -440,12 +439,12 @@ export const updateLodgeMemberById = async (req, res) => {
   } catch (error) {
     await t.rollback();
     console.error("Erro ao atualizar maçom por ID:", error);
-    console.error("Full error object:", error); // Log the full error object
-    console.error("Request body:", req.body); // Log the request body
+    console.error("Full error object:", error);
+    console.error("Request body:", req.body);
     res.status(500).json({
       message: "Erro interno no servidor ao atualizar maçom.",
       errorDetails: error.message,
-      stack: error.stack, // Include stack trace for more detailed debugging
+      stack: error.stack,
     });
   }
 };

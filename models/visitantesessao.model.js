@@ -1,56 +1,64 @@
 // backend/models/visitantesessao.model.js
 export default (sequelize, DataTypes) => {
-  const VisitanteSessao = sequelize.define('VisitanteSessao', {
-    id: {
-      type: DataTypes.INTEGER,
-      autoIncrement: true,
-      primaryKey: true,
+  const VisitanteSessao = sequelize.define(
+    "VisitanteSessao",
+    {
+      id: {
+        type: DataTypes.INTEGER,
+        autoIncrement: true,
+        primaryKey: true,
+      },
+      nomeCompleto: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        validate: {
+          notEmpty: { msg: "O nome completo do visitante é obrigatório." },
+        },
+      },
+      graduacao: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      cim: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      potencia: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      loja: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      oriente: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
     },
-    nomeCompleto: {
-      type: DataTypes.STRING,
-      allowNull: false,
-      validate: {
-        notEmpty: { msg: "O nome completo do visitante é obrigatório." }
-      }
-    },
-    graduacao: { // Grau do visitante
-      type: DataTypes.STRING, // Usar STRING para flexibilidade com diferentes potências/ritos
-      allowNull: true,        // Pode ser opcional ou preenchido conforme informado
-    },
-    cim: { // CIM (ou identificador equivalente) do visitante
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
-    potencia: { // Potência Maçônica do visitante (ex: GOB, COMAB, GLESB)
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
-    loja: { // Nome e/ou número da Loja de origem do visitante
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
-    oriente: { // Cidade de origem da Loja do visitante
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
-    // masonicSessionId será adicionado pela associação abaixo
-  }, {
-    timestamps: true,
-    tableName: 'VisitantesSessao', // Nome explícito da tabela
-  });
+    {
+      timestamps: true,
+      tableName: "VisitantesSessao",
+    }
+  );
 
-  VisitanteSessao.associate = function(models) {
-    // Um VisitanteSessao pertence a uma MasonicSession
+  VisitanteSessao.associate = function (models) {
     if (models.MasonicSession) {
+      // --- CORREÇÃO APLICADA AQUI ---
+      // Adiciona o alias 'sessao' para corresponder à associação inversa
+      // definida no modelo MasonicSession (que usa o alias 'visitantes').
       VisitanteSessao.belongsTo(models.MasonicSession, {
+        as: "sessao",
         foreignKey: {
-          name: 'masonicSessionId',
+          name: "masonicSessionId",
           allowNull: false,
         },
-        onDelete: 'CASCADE', // Se a sessão for deletada, os registros de visitantes também são
+        onDelete: "CASCADE",
       });
     } else {
-      console.error("MODELO AUSENTE: MasonicSession não pôde ser associado em VisitanteSessao.");
+      console.error(
+        "MODELO AUSENTE: MasonicSession não pôde ser associado em VisitanteSessao."
+      );
     }
   };
 

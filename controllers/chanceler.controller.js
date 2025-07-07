@@ -42,6 +42,15 @@ export const getPanelData = async (req, res) => {
  * Controller para gerar um cartão de aniversário manualmente.
  * É chamado pela rota POST /api/chanceler/gerar-cartao
  */
+export const getChanceryReportsPage = async (req, res) => {
+  try {
+    res.status(200).json({ message: "Página de relatórios da Chancelaria acessada com sucesso." });
+  } catch (error) {
+    console.error("Erro ao acessar página de relatórios da Chancelaria:", error);
+    res.status(500).json({ message: "Erro interno ao processar a solicitação.", errorDetails: error.message });
+  }
+};
+
 export const gerarCartaoManual = async (req, res) => {
   const { memberId, familyMemberId } = req.body;
   try {

@@ -9,6 +9,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const fontsPath = path.join(__dirname, "..", "assets", "fonts");
+const logoPath = path.join(
+  __dirname,
+  "..",
+  "assets",
+  "images",
+  "logoJPJ.png"
+);
+const logoBase64 = fs.readFileSync(logoPath).toString("base64");
 
 const fonts = {
   Roboto: {
@@ -30,9 +38,71 @@ export const generatePdf = (docDefinition) => {
   return new Promise((resolve, reject) => {
     const finalDocDefinition = {
       ...docDefinition,
+      pageSize: "A4",
+      pageMargins: [40, 80, 40, 60], // [left, top, right, bottom]
+      background: function (currentPage, pageSize) {
+        return {
+          canvas: [
+            {
+              type: "rect",
+              x: 20,
+              y: 20,
+              w: pageSize.width - 40,
+              h: pageSize.height - 40,
+              lineWidth: 1,
+              lineColor: "#cccccc",
+            },
+          ],
+          backgroundColor: "#f5f5f5", // Cinza claro
+        };
+      },
+      header: function (currentPage, pageCount, pageSize) {
+        return {
+          columns: [
+            {
+              image: `data:image/png;base64,${logoBase64}`,
+              width: 50,
+              alignment: "left",
+              margin: [40, 20, 0, 0],
+            },
+            {
+              text: "Loja Maçônica João Pedro Junqueira, nº 2181",
+              style: "headerTitle",
+              alignment: "center",
+              margin: [0, 30, 0, 0],
+              width: "*",
+            },
+            {
+              width: 50, // Espaço à direita para manter o título centralizado
+              text: "",
+              margin: [0, 0, 40, 0],
+            },
+          ],
+        };
+      },
+      footer: function (currentPage, pageCount) {
+        return {
+          text: currentPage.toString(),
+          alignment: "center",
+          margin: [0, 0, 0, 20], // Margem para o rodapé
+        };
+      },
       defaultStyle: {
         font: "Roboto",
         ...docDefinition.defaultStyle,
+      },
+      styles: {
+        ...docDefinition.styles,
+        headerTitle: {
+          fontSize: 18,
+          bold: true,
+        },
+        header: {
+          fontSize: 16,
+          bold: true,
+          alignment: "center",
+          margin: [0, 20, 0, 10],
+        },
       },
     };
 
@@ -72,23 +142,31 @@ export const gerarPdfMembros = async (members) => {
   ]);
 
   const docDefinition = {
+    pageOrientation: "landscape",
     content: [
-      { text: "Relatório de Membros Ativos", style: "header" },
+      { text: "Quadro de Obreiros", style: "header" }, // Título alterado
       {
         style: "tableExample",
         table: {
           headerRows: 1,
           widths: ["auto", "*", "auto", "auto", "auto", "auto"],
           body: [
-            ["CIM", "Nome Completo", "Situação", "Grau", "Telefone", "E-mail"],
+            [
+              { text: "CIM", style: "tableHeader" },
+              { text: "Nome Completo", style: "tableHeader" },
+              { text: "Situação", style: "tableHeader" },
+              { text: "Grau", style: "tableHeader" },
+              { text: "Telefone", style: "tableHeader" },
+              { text: "E-mail", style: "tableHeader" },
+            ],
             ...bodyData,
           ],
         },
       },
     ],
     styles: {
-      header: { fontSize: 18, bold: true, margin: [0, 0, 0, 10] },
       tableExample: { margin: [0, 5, 0, 15] },
+      tableHeader: { bold: true, alignment: "center" },
     },
   };
 
@@ -105,7 +183,7 @@ const formatCurrency = (value) => {
 export const gerarPdfBalancete = async (balanceteData) => {
   const { totais, lancamentos, periodo } = balanceteData;
   const bodyData = lancamentos.map((lanc) => [
-    new Date(lanc.data).toLocaleDateString("pt-BR"),
+    new Date(lanc.data).toLocaleDateString("pt-BR", { timeZone: 'America/Sao_Paulo' }),
     lanc.descricao,
     lanc.conta.nome,
     lanc.tipo,
@@ -159,12 +237,6 @@ export const gerarPdfBalancete = async (balanceteData) => {
       },
     ],
     styles: {
-      header: {
-        fontSize: 18,
-        bold: true,
-        margin: [0, 0, 0, 10],
-        alignment: "center",
-      },
       subheader: { fontSize: 14, bold: true, margin: [0, 15, 0, 5] },
       tableExample: { margin: [0, 5, 0, 15] },
     },
@@ -179,6 +251,7 @@ export const gerarPdfAniversariantes = async (aniversariantes, mes) => {
     aniv.tipo,
   ]);
   const docDefinition = {
+    pageOrientation: "landscape", // Adicionado para formato paisagem
     content: [
       { text: `Relatório de Aniversariantes - ${mes}`, style: "header" },
       { text: `Gerado em: ${new Date().toLocaleDateString("pt-BR")}` },
@@ -193,12 +266,6 @@ export const gerarPdfAniversariantes = async (aniversariantes, mes) => {
       },
     ],
     styles: {
-      header: {
-        fontSize: 18,
-        bold: true,
-        margin: [0, 0, 0, 10],
-        alignment: "center",
-      },
       tableExample: { margin: [0, 15, 0, 15] },
     },
   };
@@ -209,9 +276,9 @@ export const gerarPdfCargosGestao = async (cargos) => {
   const bodyData = cargos.map((cargo) => [
     cargo.nomeCargo,
     cargo.membro ? cargo.membro.NomeCompleto : "Vago",
-    new Date(cargo.dataInicio).toLocaleDateString("pt-BR"),
+    new Date(cargo.dataInicio).toLocaleDateString("pt-BR", { timeZone: 'America/Sao_Paulo' }),
     cargo.dataTermino
-      ? new Date(cargo.dataTermino).toLocaleDateString("pt-BR")
+      ? new Date(cargo.dataTermino).toLocaleDateString("pt-BR", { timeZone: 'America/Sao_Paulo' })
       : "Atual",
   ]);
   const docDefinition = {
@@ -232,12 +299,6 @@ export const gerarPdfCargosGestao = async (cargos) => {
       },
     ],
     styles: {
-      header: {
-        fontSize: 18,
-        bold: true,
-        margin: [0, 0, 0, 10],
-        alignment: "center",
-      },
       tableExample: { margin: [0, 15, 0, 15] },
     },
   };
@@ -282,12 +343,6 @@ export const gerarPdfComissoes = async (comissoes, dataInicio, dataFim) => {
   const docDefinition = {
     content: content,
     styles: {
-      header: {
-        fontSize: 18,
-        bold: true,
-        margin: [0, 0, 0, 10],
-        alignment: "center",
-      },
       subheader: { fontSize: 10, margin: [0, 0, 0, 20], alignment: "center" },
       comissaoTitle: {
         fontSize: 16,
@@ -327,12 +382,6 @@ export const gerarPdfDatasMaconicas = async (datas, mes) => {
       },
     ],
     styles: {
-      header: {
-        fontSize: 18,
-        bold: true,
-        margin: [0, 0, 0, 10],
-        alignment: "center",
-      },
       tableExample: { margin: [0, 15, 0, 15] },
     },
   };
@@ -347,10 +396,10 @@ export const gerarPdfEmprestimos = async (emprestimos, tipo, livro) => {
   const bodyData = emprestimos.map((emp) => [
     emp.livro ? emp.livro.titulo : "N/A",
     emp.membro ? emp.membro.NomeCompleto : "N/A",
-    new Date(emp.dataEmprestimo).toLocaleDateString("pt-BR"),
-    new Date(emp.dataDevolucaoPrevista).toLocaleDateString("pt-BR"),
+    new Date(emp.dataEmprestimo).toLocaleDateString("pt-BR", { timeZone: 'America/Sao_Paulo' }),
+    new Date(emp.dataDevolucaoPrevista).toLocaleDateString("pt-BR", { timeZone: 'America/Sao_Paulo' }),
     emp.dataDevolucaoReal
-      ? new Date(emp.dataDevolucaoReal).toLocaleDateString("pt-BR")
+      ? new Date(emp.dataDevolucaoReal).toLocaleDateString("pt-BR", { timeZone: 'America/Sao_Paulo' })
       : "Pendente",
   ]);
   const docDefinition = {
@@ -371,12 +420,6 @@ export const gerarPdfEmprestimos = async (emprestimos, tipo, livro) => {
       },
     ],
     styles: {
-      header: {
-        fontSize: 18,
-        bold: true,
-        margin: [0, 0, 0, 10],
-        alignment: "center",
-      },
       tableExample: { margin: [0, 15, 0, 15] },
     },
   };
@@ -412,12 +455,6 @@ export const gerarPdfFrequencia = async (
       },
     ],
     styles: {
-      header: {
-        fontSize: 18,
-        bold: true,
-        margin: [0, 0, 0, 10],
-        alignment: "center",
-      },
       subheader: { fontSize: 12, margin: [0, 0, 0, 15], alignment: "center" },
       tableExample: { margin: [0, 5, 0, 15] },
     },
@@ -427,7 +464,7 @@ export const gerarPdfFrequencia = async (
 
 export const gerarPdfVisitacoes = async (visitacoes, dataInicio, dataFim) => {
   const bodyData = visitacoes.map((item) => [
-    new Date(item.dataSessao).toLocaleDateString("pt-BR"),
+    new Date(item.dataSessao).toLocaleDateString("pt-BR", { timeZone: 'America/Sao_Paulo' }),
     item.visitante.NomeCompleto,
     item.lojaVisitada,
   ]);
@@ -446,12 +483,6 @@ export const gerarPdfVisitacoes = async (visitacoes, dataInicio, dataFim) => {
       },
     ],
     styles: {
-      header: {
-        fontSize: 18,
-        bold: true,
-        margin: [0, 0, 0, 10],
-        alignment: "center",
-      },
       subheader: { fontSize: 12, margin: [0, 0, 0, 15], alignment: "center" },
       tableExample: { margin: [0, 5, 0, 15] },
     },
@@ -466,7 +497,7 @@ export const gerarPdfFinanceiroDetalhado = async (
   dataFim
 ) => {
   const bodyData = lancamentos.map((lanc) => [
-    new Date(lanc.dataLancamento).toLocaleDateString("pt-BR"),
+    new Date(lanc.dataLancamento).toLocaleDateString("pt-BR", { timeZone: 'America/Sao_Paulo' }),
     lanc.descricao,
     lanc.tipo,
     { text: formatCurrency(lanc.valor), alignment: "right" },
@@ -486,12 +517,6 @@ export const gerarPdfFinanceiroDetalhado = async (
       },
     ],
     styles: {
-      header: {
-        fontSize: 18,
-        bold: true,
-        margin: [0, 0, 0, 10],
-        alignment: "center",
-      },
       subheader: { fontSize: 12, margin: [0, 0, 0, 15], alignment: "center" },
       tableExample: { margin: [0, 5, 0, 15] },
     },
@@ -521,12 +546,6 @@ export const gerarPdfPatrimonio = async (itens) => {
       },
     ],
     styles: {
-      header: {
-        fontSize: 18,
-        bold: true,
-        margin: [0, 0, 0, 10],
-        alignment: "center",
-      },
       tableExample: { margin: [0, 15, 0, 15] },
     },
   };

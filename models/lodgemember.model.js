@@ -57,7 +57,39 @@ export default (sequelize, DataTypes) => {
       Endereco_Bairro: { type: DataTypes.STRING, allowNull: true },
       Endereco_Cidade: { type: DataTypes.STRING, allowNull: true },
       Endereco_CEP: { type: DataTypes.STRING, allowNull: true },
-      Telefone: { type: DataTypes.STRING, allowNull: true },
+      Telefone: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        set(value) {
+          if (value) {
+            const onlyDigits = value.replace(/\D/g, "");
+            if (onlyDigits.length === 11) {
+              // Formato (xx) xxxxx-xxxx
+              this.setDataValue(
+                "Telefone",
+                `(${onlyDigits.substring(0, 2)}) ${onlyDigits.substring(
+                  2,
+                  7
+                )}-${onlyDigits.substring(7)}`
+              );
+            } else if (onlyDigits.length === 10) {
+              // Formato (xx) xxxx-xxxx
+              this.setDataValue(
+                "Telefone",
+                `(${onlyDigits.substring(0, 2)}) ${onlyDigits.substring(
+                  2,
+                  6
+                )}-${onlyDigits.substring(6)}`
+              );
+            } else {
+              // Se não for um número de 10 ou 11 dígitos, salva apenas os dígitos
+              this.setDataValue("Telefone", onlyDigits);
+            }
+          } else {
+            this.setDataValue("Telefone", null);
+          }
+        },
+      },
       Naturalidade: { type: DataTypes.STRING, allowNull: true },
       Nacionalidade: { type: DataTypes.STRING, allowNull: true },
       Religiao: { type: DataTypes.STRING, allowNull: true },

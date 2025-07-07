@@ -5,7 +5,7 @@ import {
   gerarPdfVisitacoes,
   gerarPdfMembros,
   gerarPdfAniversariantes,
-  gerarPdfBalancete, // CORREÇÃO: Nome da função padronizado
+  gerarPdfBalancete,
   gerarPdfCargosGestao,
   gerarPdfDatasMaconicas,
   gerarPdfEmprestimos,
@@ -33,12 +33,9 @@ export const gerarRelatorioFrequencia = async (req, res) => {
       where: { dataSessao: { [Op.between]: [dataInicio, dataFim] } },
     });
     if (totalSessoesNoPeriodo === 0) {
-      return res
-        .status(404)
-        .json({
-          message:
-            "Nenhuma sessão encontrada no período para gerar o relatório.",
-        });
+      return res.status(404).json({
+        message: "Nenhuma sessão encontrada no período para gerar o relatório.",
+      });
     }
 
     const membrosAtivos = await db.LodgeMember.findAll({
@@ -55,7 +52,6 @@ export const gerarRelatorioFrequencia = async (req, res) => {
       include: [
         {
           model: db.MasonicSession,
-          as: "session",
           attributes: [],
           where: { dataSessao: { [Op.between]: [dataInicio, dataFim] } },
         },
@@ -88,12 +84,10 @@ export const gerarRelatorioFrequencia = async (req, res) => {
     enviarPdf(res, pdfBuffer, `Relatorio_Frequencia.pdf`);
   } catch (error) {
     console.error("Erro ao gerar relatório de frequência:", error);
-    res
-      .status(500)
-      .json({
-        message: "Erro ao gerar relatório de frequência.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao gerar relatório de frequência.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -121,12 +115,10 @@ export const gerarRelatorioVisitacoes = async (req, res) => {
     );
     enviarPdf(res, pdfBuffer, `Relatorio_Visitacoes.pdf`);
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Erro ao gerar relatório de visitações.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao gerar relatório de visitações.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -139,12 +131,10 @@ export const gerarRelatorioMembros = async (req, res) => {
     const pdfBuffer = await gerarPdfMembros(membros);
     enviarPdf(res, pdfBuffer, "Quadro_de_Obreiros.pdf");
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Erro ao gerar relatório de membros.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao gerar relatório de membros.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -163,7 +153,10 @@ export const gerarRelatorioAniversariantes = async (req, res) => {
     const familiares = await db.FamilyMember.findAll({
       where: {
         [Op.and]: [
-          db.sequelize.where(fn("MONTH", col("dataNascimento")), mesNum),
+          db.sequelize.where(
+            fn("MONTH", col("FamilyMember.dataNascimento")),
+            mesNum
+          ),
         ],
       },
       include: [
@@ -182,18 +175,20 @@ export const gerarRelatorioAniversariantes = async (req, res) => {
         data: new Date(m.DataNascimento).toLocaleDateString("pt-BR", {
           day: "2-digit",
           month: "2-digit",
-          timeZone: "UTC",
+          timeZone: "America/Sao_Paulo",
         }),
-        tipo: "Membro",
+        tipo: "Irmão do Quadro",
       })),
       ...familiares.map((f) => ({
         nome: f.nomeCompleto,
         data: new Date(f.dataNascimento).toLocaleDateString("pt-BR", {
           day: "2-digit",
           month: "2-digit",
-          timeZone: "UTC",
+          timeZone: "America/Sao_Paulo",
         }),
-        tipo: `Familiar (${f.parentesco})`,
+        tipo: `${
+          f.parentesco === "Cônjuge" ? "Esposa" : f.parentesco
+        } do Irmão ${f.membro.NomeCompleto}`,
       })),
     ];
     aniversariantes.sort(
@@ -207,16 +202,13 @@ export const gerarRelatorioAniversariantes = async (req, res) => {
     const pdfBuffer = await gerarPdfAniversariantes(aniversariantes, nomeMes);
     enviarPdf(res, pdfBuffer, `Relatorio_Aniversariantes_${nomeMes}.pdf`);
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Erro ao gerar relatório de aniversariantes.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao gerar relatório de aniversariantes.",
+      errorDetails: error.message,
+    });
   }
 };
 
-// CORREÇÃO: A função agora chama 'gerarPdfBalancete' que existe no gerador de PDF
 export const gerarRelatorioFinanceiroDetalhado = async (req, res) => {
   const { dataInicio, dataFim } = req.query;
   try {
@@ -246,27 +238,27 @@ export const gerarRelatorioFinanceiroDetalhado = async (req, res) => {
 
     const periodo = {
       inicio: new Date(dataInicio).toLocaleDateString("pt-BR", {
-        timeZone: "UTC",
+        timeZone: "America/Sao_Paulo",
       }),
-      fim: new Date(dataFim).toLocaleDateString("pt-BR", { timeZone: "UTC" }),
+      fim: new Date(dataFim).toLocaleDateString("pt-BR", {
+        timeZone: "America/Sao_Paulo",
+      }),
     };
     const pdfBuffer = await gerarPdfBalancete({ totais, lancamentos, periodo });
     enviarPdf(res, pdfBuffer, "Balancete_Financeiro.pdf");
   } catch (error) {
     console.error("Erro ao gerar relatório financeiro detalhado:", error);
-    res
-      .status(500)
-      .json({
-        message: "Erro ao gerar relatório financeiro detalhado.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao gerar relatório financeiro detalhado.",
+      errorDetails: error.message,
+    });
   }
 };
 
 export const gerarRelatorioCargosGestao = async (req, res) => {
   try {
     const cargos = await db.CargoExercido.findAll({
-      where: { dataFim: null },
+      where: { dataTermino: null },
       include: [
         {
           model: db.LodgeMember,
@@ -280,12 +272,10 @@ export const gerarRelatorioCargosGestao = async (req, res) => {
     const pdfBuffer = await gerarPdfCargosGestao(cargos);
     enviarPdf(res, pdfBuffer, "Relatorio_Cargos_Gestao_Atual.pdf");
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Erro ao gerar relatório de cargos.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao gerar relatório de cargos.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -305,8 +295,10 @@ export const gerarRelatorioDatasMaconicas = async (req, res) => {
 
     let datasComemorativas = [];
     const anoAtual = new Date().getFullYear();
-    const addData = (membro, data, tipo) => {
+    const addData = (membro, data, tipoAniversario) => {
       if (data && new Date(data).getUTCMonth() + 1 === mesNum) {
+        // --- CORREÇÃO APLICADA AQUI ---
+        // As chaves do objeto agora correspondem ao que o pdfGenerator espera
         datasComemorativas.push({
           nome: membro.NomeCompleto,
           data: new Date(data).toLocaleDateString("pt-BR", {
@@ -314,8 +306,8 @@ export const gerarRelatorioDatasMaconicas = async (req, res) => {
             month: "2-digit",
             timeZone: "UTC",
           }),
-          tipoAniversario: tipo,
-          anos: anoAtual - new Date(data).getFullYear(),
+          tipo: tipoAniversario,
+          anosComemorados: anoAtual - new Date(data).getFullYear(),
         });
       }
     };
@@ -336,12 +328,10 @@ export const gerarRelatorioDatasMaconicas = async (req, res) => {
     const pdfBuffer = await gerarPdfDatasMaconicas(datasComemorativas, nomeMes);
     enviarPdf(res, pdfBuffer, `Relatorio_Datas_Maconicas_${nomeMes}.pdf`);
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Erro ao gerar relatório de datas maçônicas.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao gerar relatório de datas maçônicas.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -358,12 +348,10 @@ export const gerarRelatorioEmprestimos = async (req, res) => {
     const pdfBuffer = await gerarPdfEmprestimos(emprestimos);
     enviarPdf(res, pdfBuffer, "Relatorio_Emprestimos_Ativos.pdf");
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Erro ao gerar relatório da biblioteca.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao gerar relatório da biblioteca.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -383,12 +371,10 @@ export const gerarRelatorioComissoes = async (req, res) => {
     const pdfBuffer = await gerarPdfComissoes(comissoes);
     enviarPdf(res, pdfBuffer, `Relatorio_Comissoes.pdf`);
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Erro ao gerar relatório de comissões.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao gerar relatório de comissões.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -398,22 +384,17 @@ export const gerarRelatorioPatrimonio = async (req, res) => {
       order: [["nome", "ASC"]],
     });
     if (!todosItens || todosItens.length === 0) {
-      return res
-        .status(404)
-        .json({
-          message:
-            "Nenhum item de patrimônio encontrado para gerar o relatório.",
-        });
+      return res.status(404).json({
+        message: "Nenhum item de patrimônio encontrado para gerar o relatório.",
+      });
     }
     const pdfBuffer = await gerarPdfPatrimonio(todosItens);
     enviarPdf(res, pdfBuffer, `Relatorio_Patrimonio.pdf`);
   } catch (error) {
     console.error("Erro ao gerar relatório de patrimônio:", error);
-    res
-      .status(500)
-      .json({
-        message: "Erro ao gerar relatório de patrimônio.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao gerar relatório de patrimônio.",
+      errorDetails: error.message,
+    });
   }
 };
