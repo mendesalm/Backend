@@ -25,6 +25,11 @@ router.get('/',
   visitaController.getAllVisitas
 );
 
+router.get('/me',
+  authorizeByFeature('listarVisitas'), // Reutilizando a permissão de listar para ver as próprias visitas
+  visitaController.getVisitasByLodgeMemberId
+);
+
 router.get('/:id',
   authorizeByFeature('listarVisitas'), // Reutilizando a permissão de listar para ver detalhes
   visitaIdParamRule,

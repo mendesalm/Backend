@@ -145,3 +145,27 @@ export const deleteVisita = async (req, res) => {
       });
   }
 };
+
+// Obter visitas pelo ID do LodgeMember (usuário logado)
+export const getVisitasByLodgeMemberId = async (req, res) => {
+  try {
+    const lodgeMemberId = req.user.id; // ID do usuário logado
+    const visitas = await db.Visita.findAll({
+      where: { lodgeMemberId: lodgeMemberId },
+      include: [
+        {
+          model: db.LodgeMember,
+          as: "visitante",
+          attributes: ["id", "NomeCompleto"],
+        },
+      ],
+      order: [["dataSessao", "DESC"]],
+    });
+    res.status(200).json(visitas);
+  } catch (error) {
+    res.status(500).json({
+      message: "Erro ao buscar visitas do maçom logado.",
+      errorDetails: error.message,
+    });
+  }
+};

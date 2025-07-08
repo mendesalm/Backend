@@ -195,7 +195,15 @@ export const createLodgeMember = async (req, res) => {
       memberDataToCreate.CPF = null;
     }
 
-    const dateFields = ["DataCasamento", "DataFiliacao", "DataRegularizacao"];
+    const dateFields = [
+      "DataCasamento",
+      "DataFiliacao",
+      "DataRegularizacao",
+      "DataIniciacao",
+      "DataElevacao",
+      "DataExaltacao",
+      "DataNascimento",
+    ];
     dateFields.forEach((field) => {
       if (
         memberDataToCreate[field] === "" ||

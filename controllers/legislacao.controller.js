@@ -19,7 +19,13 @@ const removerArquivoFisico = (caminhoRelativo) => {
 export const createLegislacao = async (req, res) => {
   try {
     const { titulo, descricao, dataPublicacao } = req.body;
-    const lodgeMemberId = req.user.id;
+
+    // 1. VERIFICAÇÃO: Garante que o usuário está autenticado
+    if (!req.lodgeMember || !req.lodgeMember.id) {
+      return res.status(401).json({ message: "Usuário não autenticado." });
+    }
+    const lodgeMemberId = req.lodgeMember.id; // <-- CORREÇÃO: Obtém o ID do usuário logado
+
     if (!req.file) {
       return res
         .status(400)
@@ -34,17 +40,29 @@ export const createLegislacao = async (req, res) => {
       titulo,
       descricao,
       dataPublicacao,
-      lodgeMemberId,
+      lodgeMemberId, // <-- CORREÇÃO: Associa a legislação ao autor
       caminhoArquivo: caminhoRelativo,
       nomeOriginalArquivo: req.file.originalname,
     });
 
-    res
-      .status(201)
-      .json({
-        message: "Legislação criada com sucesso!",
-        data: novaLegislacao,
-      });
+    // 2. INCLUSÃO: Retorna os dados do autor na resposta para consistência
+    const legislacaoComAutor = await db.Legislacao.findByPk(
+      novaLegislacao.id,
+      {
+        include: [
+          {
+            model: db.LodgeMember,
+            as: "autor",
+            attributes: ["id", "NomeCompleto"],
+          },
+        ],
+      }
+    );
+
+    res.status(201).json({
+      message: "Legislação criada com sucesso!",
+      data: legislacaoComAutor, // <-- CORREÇÃO: Retorna o objeto completo
+    });
   } catch (error) {
     if (req.file) removerArquivoFisico(req.file.path);
     console.error("Erro ao criar legislação:", error);
