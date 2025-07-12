@@ -73,6 +73,7 @@ const modelDefinitions = [
   { key: "FotoClassificado", file: "fotoClassificado.model.js" },
   { key: "LocacaoSalao", file: "locacaoSalao.model.js" },
   { key: "EmprestimoPatrimonio", file: "emprestimoPatrimonio.model.js" },
+  { key: "Loja", file: "loja.model.js" },
   {
     key: "ItemEmprestimoPatrimonio",
     file: "itemEmprestimoPatrimonio.model.js",

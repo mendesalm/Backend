@@ -23,18 +23,19 @@ export default (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: true,
       },
-      potencia: {
-        type: DataTypes.STRING,
+      // --- CAMPO ADICIONADO ---
+      lojaId: {
+        type: DataTypes.INTEGER,
         allowNull: true,
+        references: {
+          model: "Lojas",
+          key: "id",
+        },
       },
-      loja: {
-        type: DataTypes.STRING,
-        allowNull: true,
-      },
-      oriente: {
-        type: DataTypes.STRING,
-        allowNull: true,
-      },
+      // --- CAMPOS ANTIGOS (REMOVIDOS DO MODELO) ---
+      // potencia: DataTypes.STRING,
+      // loja: DataTypes.STRING,
+      // oriente: DataTypes.STRING,
     },
     {
       timestamps: true,
@@ -44,9 +45,6 @@ export default (sequelize, DataTypes) => {
 
   VisitanteSessao.associate = function (models) {
     if (models.MasonicSession) {
-      // --- CORREÇÃO APLICADA AQUI ---
-      // Adiciona o alias 'sessao' para corresponder à associação inversa
-      // definida no modelo MasonicSession (que usa o alias 'visitantes').
       VisitanteSessao.belongsTo(models.MasonicSession, {
         as: "sessao",
         foreignKey: {
@@ -55,10 +53,14 @@ export default (sequelize, DataTypes) => {
         },
         onDelete: "CASCADE",
       });
-    } else {
-      console.error(
-        "MODELO AUSENTE: MasonicSession não pôde ser associado em VisitanteSessao."
-      );
+    }
+
+    // --- NOVA ASSOCIAÇÃO ---
+    if (models.Loja) {
+      VisitanteSessao.belongsTo(models.Loja, {
+        foreignKey: "lojaId",
+        as: "loja",
+      });
     }
   };
 

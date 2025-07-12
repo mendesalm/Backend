@@ -18,6 +18,13 @@ export default (sequelize) => {
         onUpdate: 'CASCADE',
         onDelete: 'SET NULL',
       },
+      presidenteId: { // Presidente da comissão
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        references: { model: 'LodgeMembers', key: 'id' },
+        onUpdate: 'CASCADE',
+        onDelete: 'RESTRICT', // Impede excluir um membro que é presidente
+      },
     },
     {
       tableName: 'Comissoes',
@@ -38,6 +45,12 @@ export default (sequelize) => {
     Comissao.belongsTo(models.LodgeMember, {
       foreignKey: 'criadorId',
       as: 'criador',
+    });
+
+    // Presidente da comissão
+    Comissao.belongsTo(models.LodgeMember, {
+      foreignKey: 'presidenteId',
+      as: 'presidente',
     });
   };
 

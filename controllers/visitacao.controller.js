@@ -1,44 +1,59 @@
 // controllers/visitacao.controller.js
 import db from "../models/index.js";
 
-// CORREÇÃO: Removida a desestruturação de modelos do topo do ficheiro.
-
-// Criar um novo registro de visita
+/**
+ * Cria um novo registro de visita, utilizando a tabela centralizada de Lojas.
+ */
 export const createVisita = async (req, res) => {
+  const { dadosLoja, ...dadosVisita } = req.body;
+  const t = await db.sequelize.transaction();
+
   try {
-    const visita = await db.Visita.create(req.body); // Usa db.Visita
+    // Procura pela loja ou cria uma nova se não existir (findOrCreate)
+    const [loja] = await db.Loja.findOrCreate({
+      where: {
+        nome: dadosLoja.nome,
+        cidade: dadosLoja.cidade,
+        estado: dadosLoja.estado,
+      },
+      defaults: dadosLoja,
+      transaction: t,
+    });
+
+    // Cria o registro da visita associando o ID da loja
+    const visita = await db.Visita.create(
+      {
+        ...dadosVisita,
+        lojaId: loja.id,
+      },
+      { transaction: t }
+    );
+
+    await t.commit();
     res.status(201).json(visita);
   } catch (error) {
+    await t.rollback();
     if (error.name === "SequelizeValidationError") {
-      return res
-        .status(400)
-        .json({
-          message: "Erro de validação.",
-          errors: error.errors.map((e) => ({ msg: e.message, path: e.path })),
-        });
-    }
-    res
-      .status(500)
-      .json({
-        message: "Erro ao registrar visita.",
-        errorDetails: error.message,
+      return res.status(400).json({
+        message: "Erro de validação.",
+        errors: error.errors.map((e) => ({ msg: e.message, path: e.path })),
       });
+    }
+    res.status(500).json({
+      message: "Erro ao registrar visita.",
+      errorDetails: error.message,
+    });
   }
 };
 
 // Listar todas as visitas, com filtros
 export const getAllVisitas = async (req, res) => {
   try {
-    const { lojaVisitada, lodgeMemberId } = req.query;
+    const { lodgeMemberId } = req.query;
     const whereClause = {};
-    if (lojaVisitada)
-      whereClause.lojaVisitada = {
-        [db.Sequelize.Op.like]: `%${lojaVisitada}%`,
-      };
     if (lodgeMemberId) whereClause.lodgeMemberId = lodgeMemberId;
 
     const visitas = await db.Visita.findAll({
-      // Usa db.Visita
       where: whereClause,
       include: [
         {
@@ -46,17 +61,16 @@ export const getAllVisitas = async (req, res) => {
           as: "visitante",
           attributes: ["id", "NomeCompleto"],
         },
-      ], // Usa db.LodgeMember
+        { model: db.Loja, as: "loja" }, // Inclui os dados da loja associada
+      ],
       order: [["dataSessao", "DESC"]],
     });
     res.status(200).json(visitas);
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Erro ao buscar visitas.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao buscar visitas.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -64,14 +78,14 @@ export const getAllVisitas = async (req, res) => {
 export const getVisitaById = async (req, res) => {
   try {
     const visita = await db.Visita.findByPk(req.params.id, {
-      // Usa db.Visita
       include: [
         {
           model: db.LodgeMember,
           as: "visitante",
           attributes: ["id", "NomeCompleto"],
         },
-      ], // Usa db.LodgeMember
+        { model: db.Loja, as: "loja" },
+      ],
     });
     if (!visita) {
       return res
@@ -80,12 +94,10 @@ export const getVisitaById = async (req, res) => {
     }
     res.status(200).json(visita);
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Erro ao buscar registro de visita.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao buscar registro de visita.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -93,33 +105,35 @@ export const getVisitaById = async (req, res) => {
 export const updateVisita = async (req, res) => {
   try {
     const { id } = req.params;
-    const lodgeMemberId = req.user.id; // Get the authenticated user's ID
+    const { credencialAcesso, id: userId } = req.user;
 
-    const [updated] = await db.Visita.update(req.body, {
-      where: { id: id, lodgeMemberId: lodgeMemberId },
-    }); // Usa db.Visita
-    if (!updated) {
-      return res
-        .status(404)
-        .json({ message: "Registro de visita não encontrado ou não pertence a este maçom." });
+    const whereClause = { id: parseInt(id, 10) };
+
+    if (credencialAcesso !== "Webmaster" && credencialAcesso !== "Diretoria") {
+      whereClause.lodgeMemberId = userId;
     }
-    const updatedVisita = await db.Visita.findByPk(id); // Usa db.Visita
+
+    const [updated] = await db.Visita.update(req.body, { where: whereClause });
+
+    if (!updated) {
+      return res.status(404).json({
+        message: "Registro de visita não encontrado ou permissão negada.",
+      });
+    }
+
+    const updatedVisita = await db.Visita.findByPk(id);
     res.status(200).json(updatedVisita);
   } catch (error) {
     if (error.name === "SequelizeValidationError") {
-      return res
-        .status(400)
-        .json({
-          message: "Erro de validação.",
-          errors: error.errors.map((e) => ({ msg: e.message, path: e.path })),
-        });
-    }
-    res
-      .status(500)
-      .json({
-        message: "Erro ao atualizar registro de visita.",
-        errorDetails: error.message,
+      return res.status(400).json({
+        message: "Erro de validação.",
+        errors: error.errors.map((e) => ({ msg: e.message, path: e.path })),
       });
+    }
+    res.status(500).json({
+      message: "Erro ao atualizar registro de visita.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -127,44 +141,25 @@ export const updateVisita = async (req, res) => {
 export const deleteVisita = async (req, res) => {
   try {
     const { id } = req.params;
-    const lodgeMemberId = req.user.id; // Get the authenticated user's ID
+    const { credencialAcesso, id: userId } = req.user;
 
-    const deleted = await db.Visita.destroy({ where: { id: id, lodgeMemberId: lodgeMemberId } }); // Usa db.Visita
-    if (!deleted) {
-      return res
-        .status(404)
-        .json({ message: "Registro de visita não encontrado ou não pertence a este maçom." });
+    const whereClause = { id: parseInt(id, 10) };
+
+    if (credencialAcesso !== "Webmaster" && credencialAcesso !== "Diretoria") {
+      whereClause.lodgeMemberId = userId;
     }
-    res.status(204).send(); // 204 No Content
-  } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Erro ao deletar registro de visita.",
-        errorDetails: error.message,
-      });
-  }
-};
 
-// Obter visitas pelo ID do LodgeMember (usuário logado)
-export const getVisitasByLodgeMemberId = async (req, res) => {
-  try {
-    const lodgeMemberId = req.user.id; // ID do usuário logado
-    const visitas = await db.Visita.findAll({
-      where: { lodgeMemberId: lodgeMemberId },
-      include: [
-        {
-          model: db.LodgeMember,
-          as: "visitante",
-          attributes: ["id", "NomeCompleto"],
-        },
-      ],
-      order: [["dataSessao", "DESC"]],
-    });
-    res.status(200).json(visitas);
+    const deleted = await db.Visita.destroy({ where: whereClause });
+
+    if (!deleted) {
+      return res.status(404).json({
+        message: "Registro de visita não encontrado ou permissão negada.",
+      });
+    }
+    res.status(204).send();
   } catch (error) {
     res.status(500).json({
-      message: "Erro ao buscar visitas do maçom logado.",
+      message: "Erro ao deletar registro de visita.",
       errorDetails: error.message,
     });
   }
