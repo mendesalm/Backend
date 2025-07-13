@@ -2,19 +2,63 @@
 import db from "../models/index.js";
 
 /**
+ * Procura na nova tabela 'Lojas' para a funcionalidade de autocompletar.
+ * Retorna uma lista de objetos de Loja.
+ */
+export const searchLojasVisitadas = async (req, res) => {
+  const { q } = req.query;
+
+  if (!q || q.length < 2) {
+    return res.status(400).json({
+      message: "O termo de busca deve ter no mínimo 2 caracteres.",
+    });
+  }
+
+  try {
+    const { Op } = db.Sequelize;
+    const lojas = await db.Loja.findAll({
+      where: {
+        nome: {
+          [Op.like]: `%${q}%`,
+        },
+      },
+      limit: 10,
+    });
+
+    res.status(200).json(lojas);
+  } catch (error) {
+    console.error("Erro ao buscar lojas para autocompletar:", error);
+    res.status(500).json({
+      message: "Erro no servidor ao buscar lojas.",
+      errorDetails: error.message,
+    });
+  }
+};
+
+/**
  * Cria um novo registro de visita, utilizando a tabela centralizada de Lojas.
+ * **Esta função foi tornada mais robusta para evitar o erro 500.**
  */
 export const createVisita = async (req, res) => {
   const { dadosLoja, ...dadosVisita } = req.body;
   const t = await db.sequelize.transaction();
 
   try {
+    // Validação explícita para garantir que os dados da loja foram enviados corretamente.
+    if (!dadosLoja || !dadosLoja.nome) {
+      await t.rollback();
+      return res.status(400).json({
+        message:
+          "Dados da loja inválidos. O objeto 'dadosLoja' contendo a propriedade 'nome' é obrigatório.",
+      });
+    }
+
     // Procura pela loja ou cria uma nova se não existir (findOrCreate)
     const [loja] = await db.Loja.findOrCreate({
       where: {
         nome: dadosLoja.nome,
-        cidade: dadosLoja.cidade,
-        estado: dadosLoja.estado,
+        cidade: dadosLoja.cidade || null,
+        estado: dadosLoja.estado || null,
       },
       defaults: dadosLoja,
       transaction: t,
@@ -33,6 +77,7 @@ export const createVisita = async (req, res) => {
     res.status(201).json(visita);
   } catch (error) {
     await t.rollback();
+    console.error("Erro detalhado ao registrar visita:", error); // Log mais detalhado do erro
     if (error.name === "SequelizeValidationError") {
       return res.status(400).json({
         message: "Erro de validação.",
@@ -61,7 +106,7 @@ export const getAllVisitas = async (req, res) => {
           as: "visitante",
           attributes: ["id", "NomeCompleto"],
         },
-        { model: db.Loja, as: "loja" }, // Inclui os dados da loja associada
+        { model: db.Loja, as: "loja" },
       ],
       order: [["dataSessao", "DESC"]],
     });
@@ -116,9 +161,11 @@ export const updateVisita = async (req, res) => {
     const [updated] = await db.Visita.update(req.body, { where: whereClause });
 
     if (!updated) {
-      return res.status(404).json({
-        message: "Registro de visita não encontrado ou permissão negada.",
-      });
+      return res
+        .status(404)
+        .json({
+          message: "Registro de visita não encontrado ou permissão negada.",
+        });
     }
 
     const updatedVisita = await db.Visita.findByPk(id);
@@ -152,9 +199,11 @@ export const deleteVisita = async (req, res) => {
     const deleted = await db.Visita.destroy({ where: whereClause });
 
     if (!deleted) {
-      return res.status(404).json({
-        message: "Registro de visita não encontrado ou permissão negada.",
-      });
+      return res
+        .status(404)
+        .json({
+          message: "Registro de visita não encontrado ou permissão negada.",
+        });
     }
     res.status(204).send();
   } catch (error) {

@@ -1,49 +1,79 @@
 // controllers/loja.controller.js
 import db from "../models/index.js";
+import { Op } from "sequelize";
+import { normalizeString } from "../utils/normalizeString.js"; // 1. Importa a nova função
 
-/**
- * Procura na nova tabela 'Lojas' para a funcionalidade de autocompletar.
- * Retorna uma lista de objetos de Loja.
- */
-export const searchLojasVisitadas = async (req, res) => {
-  const { q } = req.query;
-
-  if (!q || q.length < 2) {
-    return res.status(400).json({
-      message: "O termo de busca deve ter no mínimo 2 caracteres.",
-    });
-  }
-
-  try {
-    const { Op } = db.Sequelize;
-    const lojas = await db.Loja.findAll({
-      where: {
-        nome: {
-          [Op.like]: `%${q}%`,
-        },
-      },
-      limit: 10,
-    });
-
-    res.status(200).json(lojas);
-  } catch (error) {
-    console.error("Erro ao buscar lojas para autocompletar:", error);
-    res.status(500).json({
-      message: "Erro no servidor ao buscar lojas.",
-      errorDetails: error.message,
-    });
-  }
-};
-
-// Criar uma nova Loja
+// Criar uma nova Loja com validação de duplicidade
 export const createLoja = async (req, res) => {
+  const { nome, numero, cidade, estado, potencia } = req.body;
+
+  // Garante que o nome e o número foram fornecidos
+  if (!nome || !numero) {
+    return res
+      .status(400)
+      .json({ message: "O nome e o número da loja são obrigatórios." });
+  }
+
   try {
-    const loja = await db.Loja.create(req.body);
-    res.status(201).json(loja);
+    // 2. Normaliza os campos relevantes para uma verificação consistente
+    const normalizedNome = normalizeString(nome);
+    const normalizedCidade = normalizeString(cidade);
+
+    // 3. Verifica se já existe uma loja com o mesmo nome normalizado E cidade, OU com o mesmo número
+    const existingLoja = await db.Loja.findOne({
+      where: {
+        [Op.or]: [
+          {
+            nome: normalizedNome,
+            cidade: normalizedCidade, // Combinação para evitar lojas com mesmo nome em cidades diferentes
+          },
+          {
+            numero: numero,
+          },
+        ],
+      },
+    });
+
+    // 4. Se encontrar uma duplicata, retorna um erro 409 Conflict
+    if (existingLoja) {
+      return res.status(409).json({
+        message:
+          "Já existe uma loja com esta combinação de nome e cidade, ou com este número.",
+        details: existingLoja,
+      });
+    }
+
+    // 5. Se não houver duplicata, cria a nova loja
+    // Nota: O Sequelize não tem um "setter" automático como o Mongoose,
+    // então passamos os dados originais. A validação já foi feita com os dados normalizados.
+    const novaLoja = await db.Loja.create({
+      nome,
+      numero,
+      cidade,
+      estado,
+      potencia,
+    });
+
+    res
+      .status(201)
+      .json({ message: "Loja criada com sucesso!", loja: novaLoja });
   } catch (error) {
+    // O Sequelize pode retornar um erro de violação de constraint única se houver uma "race condition"
+    if (error.name === "SequelizeUniqueConstraintError") {
+      return res
+        .status(409)
+        .json({
+          message:
+            "Erro de duplicidade: O nome, número ou outra combinação única de campos já existe.",
+        });
+    }
+    console.error("Erro ao criar loja:", error);
     res
       .status(500)
-      .json({ message: "Erro ao criar loja.", errorDetails: error.message });
+      .json({
+        message: "Erro interno do servidor ao criar loja.",
+        errorDetails: error.message,
+      });
   }
 };
 
@@ -86,10 +116,12 @@ export const updateLoja = async (req, res) => {
     const updatedLoja = await db.Loja.findByPk(req.params.id);
     res.status(200).json(updatedLoja);
   } catch (error) {
-    res.status(500).json({
-      message: "Erro ao atualizar loja.",
-      errorDetails: error.message,
-    });
+    res
+      .status(500)
+      .json({
+        message: "Erro ao atualizar loja.",
+        errorDetails: error.message,
+      });
   }
 };
 
@@ -105,5 +137,39 @@ export const deleteLoja = async (req, res) => {
     res
       .status(500)
       .json({ message: "Erro ao apagar loja.", errorDetails: error.message });
+  }
+};
+
+// Função de pesquisa para autocompletar
+export const searchLojasVisitadas = async (req, res) => {
+  const { q } = req.query;
+
+  if (!q || q.length < 1) {
+    return res.status(400).json({
+      message: "O termo de busca deve ter no mínimo 1 caractere.",
+    });
+  }
+
+  try {
+    const whereClause = {
+      [Op.or]: [{ nome: { [Op.like]: `%${q}%` } }],
+    };
+
+    if (!isNaN(parseInt(q, 10))) {
+      whereClause[Op.or].push({ numero: { [Op.eq]: parseInt(q, 10) } });
+    }
+
+    const lojas = await db.Loja.findAll({
+      where: whereClause,
+      limit: 10,
+    });
+
+    res.status(200).json(lojas);
+  } catch (error) {
+    console.error("Erro ao buscar lojas para autocompletar:", error);
+    res.status(500).json({
+      message: "Erro no servidor ao buscar lojas.",
+      errorDetails: error.message,
+    });
   }
 };
