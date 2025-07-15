@@ -15,9 +15,6 @@ import {
 
 const { Op, fn, col } = db.Sequelize;
 
-/**
- * Função auxiliar genérica para enviar um buffer de PDF na resposta.
- */
 const enviarPdf = (res, pdfBuffer, nomeArquivo) => {
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename=${nomeArquivo}`);
@@ -102,6 +99,7 @@ export const gerarRelatorioVisitacoes = async (req, res) => {
           as: "visitante",
           attributes: ["NomeCompleto"],
         },
+        { model: db.Loja, as: "loja" },
       ],
       order: [
         ["dataSessao", "ASC"],
@@ -179,26 +177,31 @@ export const gerarRelatorioAniversariantes = async (req, res) => {
         }),
         tipo: "Irmão do Quadro",
       })),
-      ...familiares.map((f) => ({
-        nome: f.nomeCompleto,
-        data: new Date(f.dataNascimento).toLocaleDateString("pt-BR", {
-          day: "2-digit",
-          month: "2-digit",
-          timeZone: "America/Sao_Paulo",
-        }),
-        tipo: `${
-          f.parentesco === "Cônjuge" ? "Esposa" : f.parentesco
-        } do Irmão ${f.membro.NomeCompleto}`,
-      })),
+      ...familiares.map((f) => {
+        const relacionamento =
+          f.parentesco.toLowerCase() === "cônjuge"
+            ? `Esposa do Irmão ${f.membro.NomeCompleto}`
+            : `${f.parentesco} do Irmão ${f.membro.NomeCompleto}`;
+        return {
+          nome: f.nomeCompleto,
+          data: new Date(f.dataNascimento).toLocaleDateString("pt-BR", {
+            day: "2-digit",
+            month: "2-digit",
+            timeZone: "America/Sao_Paulo",
+          }),
+          tipo: relacionamento,
+        };
+      }),
     ];
     aniversariantes.sort(
       (a, b) =>
         parseInt(a.data.substring(0, 2)) - parseInt(b.data.substring(0, 2))
     );
 
-    const nomeMes = new Date(2000, mesNum - 1).toLocaleString("pt-BR", {
+    const nomeMesBruto = new Date(2000, mesNum - 1).toLocaleString("pt-BR", {
       month: "long",
     });
+    const nomeMes = nomeMesBruto.charAt(0).toUpperCase() + nomeMesBruto.slice(1);
     const pdfBuffer = await gerarPdfAniversariantes(aniversariantes, nomeMes);
     enviarPdf(res, pdfBuffer, `Relatorio_Aniversariantes_${nomeMes}.pdf`);
   } catch (error) {
@@ -297,8 +300,6 @@ export const gerarRelatorioDatasMaconicas = async (req, res) => {
     const anoAtual = new Date().getFullYear();
     const addData = (membro, data, tipoAniversario) => {
       if (data && new Date(data).getUTCMonth() + 1 === mesNum) {
-        // --- CORREÇÃO APLICADA AQUI ---
-        // As chaves do objeto agora correspondem ao que o pdfGenerator espera
         datasComemorativas.push({
           nome: membro.NomeCompleto,
           data: new Date(data).toLocaleDateString("pt-BR", {
@@ -322,9 +323,10 @@ export const gerarRelatorioDatasMaconicas = async (req, res) => {
         parseInt(a.data.substring(0, 2)) - parseInt(b.data.substring(0, 2))
     );
 
-    const nomeMes = new Date(2000, mesNum - 1).toLocaleString("pt-BR", {
+    const nomeMesBruto = new Date(2000, mesNum - 1).toLocaleString("pt-BR", {
       month: "long",
     });
+    const nomeMes = nomeMesBruto.charAt(0).toUpperCase() + nomeMesBruto.slice(1);
     const pdfBuffer = await gerarPdfDatasMaconicas(datasComemorativas, nomeMes);
     enviarPdf(res, pdfBuffer, `Relatorio_Datas_Maconicas_${nomeMes}.pdf`);
   } catch (error) {
