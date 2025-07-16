@@ -1,8 +1,7 @@
 import db from "../models/index.js";
 import {
   createBalaustreFromTemplate,
-  deleteGoogleFile,
-} from "../services/googleDocs.service.js";
+} from "../services/documents.service.js";
 
 // Função para buscar dados do balaústre, agora incluindo a contagem de presença
 export const getBalaustreDetails = async (req, res) => {
@@ -49,19 +48,14 @@ export const updateBalaustre = async (req, res) => {
         .json({ message: "Balaústre não encontrado para atualizar." });
     }
 
-    // Deleta o arquivo antigo do Google Drive
-    if (balaustre.googleDocId) {
-      await deleteGoogleFile(balaustre.googleDocId);
-    }
-
     // Cria um novo documento a partir do template com os novos dados (incluindo as contagens manuais)
-    const { googleDocId, pdfPath } = await createBalaustreFromTemplate(
+    const { pdfPath } = await createBalaustreFromTemplate(
       newData,
       balaustre.MasonicSessionId
     );
 
     // Atualiza o registro no banco de dados com os novos IDs e dados
-    balaustre.googleDocId = googleDocId;
+    balaustre.googleDocId = null; // Não há mais ID do Google Docs
     balaustre.caminhoPdfLocal = pdfPath;
     balaustre.dadosFormulario = newData; // Salva os dados corrigidos
     balaustre.numero = newData.NumeroBalaustre;

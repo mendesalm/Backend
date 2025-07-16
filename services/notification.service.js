@@ -3,7 +3,7 @@ import path from "path";
 import db from "../models/index.js";
 import { Op, fn, col } from "sequelize";
 import { sendEmail } from "../utils/emailSender.js";
-import { gerarCartaoAniversarioPDF } from "./chanceler.service.js"; // Importamos o gerador de cartões
+import { createCartaoAniversarioFromTemplate, deleteLocalFile } from "../services/documents.service.js";
 import fs from "fs"; // Módulo File System para deletar o cartão após o envio
 
 /**
@@ -119,7 +119,7 @@ export async function notificarAniversariantesDoDiaComCartao() {
       }
 
       console.log(`[Notify] Gerando cartão para: ${aniversariante.nome}`);
-      caminhoPDF = await gerarCartaoAniversarioPDF(aniversariante);
+      const { pdfPath: caminhoPDF } = await createCartaoAniversarioFromTemplate(aniversariante);
 
       const dadosParaTemplate =
         aniversariante.tipo === "Familiar"
@@ -161,12 +161,11 @@ export async function notificarAniversariantesDoDiaComCartao() {
     } finally {
       // Limpa o ficheiro PDF gerado, independentemente de sucesso ou falha
       if (caminhoPDF) {
-        fs.unlink(caminhoPDF, (err) => {
-          if (err)
-            console.error(
-              `[Notify] Erro ao deletar o ficheiro temporário ${caminhoPDF}:`,
-              err
-            );
+        deleteLocalFile(caminhoPDF).catch((err) => {
+          console.error(
+            `[Notify] Erro ao deletar o ficheiro temporário ${caminhoPDF}:`,
+            err
+          );
         });
       }
     }
@@ -197,35 +196,23 @@ export async function notificarAniversariosMaconicos() {
     });
     for (const m of membrosComIniciacao) {
       const anos = anoAtual - new Date(m.DataIniciacao).getFullYear();
-      if (anos > 0)
-        await dispatchEmail("ANIVERSARIO_MACONICO", m, {
-          tipoAniversario: "Iniciação",
-          anos: anos,
-        });
+      if (anos > 0) {
+        // TODO: Implementar envio de email de aniversário maçônico de Iniciação
+      }
     }
 
     const membrosComElevacao = await db.LodgeMember.findAll({
       where: whereClause("DataElevacao"),
     });
     for (const m of membrosComElevacao) {
-      const anos = anoAtual - new Date(m.DataElevacao).getFullYear();
-      if (anos > 0)
-        await dispatchEmail("ANIVERSARIO_MACONICO", m, {
-          tipoAniversario: "Elevação",
-          anos: anos,
-        });
+      // TODO: Implementar envio de email de aniversário maçônico de Elevação
     }
 
     const membrosComExaltacao = await db.LodgeMember.findAll({
       where: whereClause("DataExaltacao"),
     });
     for (const m of membrosComExaltacao) {
-      const anos = anoAtual - new Date(m.DataExaltacao).getFullYear();
-      if (anos > 0)
-        await dispatchEmail("ANIVERSARIO_MACONICO", m, {
-          tipoAniversario: "Exaltação",
-          anos: anos,
-        });
+      // TODO: Implementar envio de email de aniversário maçônico de Exaltação
     }
   } catch (error) {
     console.error("[Notify] Erro ao buscar aniversários maçônicos:", error);
@@ -235,7 +222,7 @@ export async function notificarAniversariosMaconicos() {
 export async function notificarCadastroAprovado(membroId) {
   const membro = await db.LodgeMember.findByPk(membroId);
   if (membro) {
-    await dispatchEmail("CADASTRO_APROVADO", membro);
+    // TODO: Implementar envio de email de cadastro aprovado
   }
 }
 
@@ -259,7 +246,7 @@ export async function verificarAusenciasConsecutivas() {
         where: { lodgeMemberId: membro.id, sessionId: { [Op.in]: idsSessoes } },
       });
       if (presencas === 0) {
-        await dispatchEmail("AVISO_AUSENCIA_CONSECUTIVA", membro);
+        // TODO: Implementar envio de email de aviso de ausência consecutiva
       }
     }
   } catch (error) {
@@ -297,9 +284,7 @@ export async function enviarConvocacaoSessaoColetiva() {
           subtipoSessao: sessaoDaSemana.subtipoSessao,
         };
         // CORREÇÃO: A estrutura do objeto de contexto está correta.
-        await dispatchEmail("CONVOCACAO_SESSAO_COLETIVA", membro, {
-          sessao: sessaoContext,
-        });
+        // TODO: Implementar envio de email de convocação coletiva
       }
       console.log(
         `[Notify] Convocação coletiva enviada para ${membrosAtivos.length} membros.`

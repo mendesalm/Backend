@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Balaústre</title>
+    <style>
+      body {
+        font-family: "Poppins", sans-serif; /* Usando Poppins */
+        margin: 0; /* Removendo margens do body */
+        padding: 0; /* Removendo padding do body */
+        line-height: 1.6;
+        color: #333;
+      }
+
+      span,
+      p,
+      b {
+        font-family: "Poppins", sans-serif;
+      }
+      .document-content {
+        margin: 0; /* Removendo margem para que as margens do PDF sejam as únicas */
+      }
+
+      .header-grid {
+        display: grid;
+        grid-template-columns: 1fr 8fr;
+        align-items: center;
+        height: 2cm; /* Altura máxima do cabeçalho (3cm * 0.7 - 1mm) */
+        overflow: hidden; /* Esconder conteúdo que exceda a altura */
+      }
+
+      /* Estilo para a coluna do logo esquerdo */
+      .header-logo {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100%;
+      }
+
+      .header-logo img {
+        max-height: 1.7cm; /* Reduzir altura máxima da imagem */
+        width: auto;
+        border-radius: 50%;
+        background-color: #fff;
+      }
+
+      .header-text {
+        position: relative;
+        background-color: #800;
+        color: white;
+        clip-path: polygon(0 0, 100% 0, 100% 100%, 10% 100%);
+        text-align: right; /* Alinhar texto à direita */
+        padding: 2px 120px 2px 10px; /* Ajustar padding para dar espaço ao logo */
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        height: 100%; /* Ocupar a altura total do grid */
+      }
+
+      .header-text .affiliation {
+        margin: 0; /* Remover margens */
+        font-family: sans-serif;
+        font-size: 0.5em; /* Reduzir tamanho da fonte */
+        font-weight: 500;
+      }
+
+      .header-text .lodge-name {
+        margin: 0; /* Remover margens */
+        font-family: serif;
+        font-size: 1.4em; /* Reduzir tamanho da fonte */
+        font-weight: bold;
+        line-height: 1.1;
+        text-transform: uppercase;
+      }
+
+      .logo-in-text {
+        position: absolute;
+        right: 5px; /* Ajustar distância da borda direita */
+        top: 50%;
+        transform: translateY(-50%);
+        max-height: 1.7cm; /* Reduzir altura máxima da imagem */
+        width: auto;
+      }
+
+      .section {
+        margin-bottom: 20px;
+      }
+      .section-title {
+        font-weight: bold;
+        margin-bottom: 5px;
+        border-bottom: 1px solid #ccc;
+        padding-bottom: 3px;
+      }
+
+      .mso-title {
+        text-align: center;
+        line-height: 1.2;
+      }
+      .mso-normal {
+        text-align: justify;
+        line-height: 1.5;
+        padding: 2mm;
+      }
+
+      .mso-sign {
+        text-align: center;
+      }
+      .mso-sign-li {
+        text-align: center;
+        font-family: "Open Sans", sans-serif; /* Usando Open Sans para a linha */
+      }
+      .officers-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+      }
+      .officers-table td {
+        padding: 5px;
+        border: 1px solid #eee;
+      }
+      .signature {
+        margin-top: 50px;
+        text-align: center;
+      }
+      .signature div {
+        margin-top: 20px;
+        border-top: 1px solid #000;
+        display: inline-block;
+        padding-top: 5px;
+        width: 60%;
+      }
+      /* Specific styles from the Word HTML that might be useful, adapted */
+
+      /* Padronizando todas as fontes para Open Sans */
+      span,
+      p,
+      b {
+        font-family: "Open Sans", sans-serif;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="document-content">
+      <header class="header-grid">
+        <div class="header-logo logo-col-left">
+          <img src="{{headerImage}}" alt="Logo Esquerdo" />
+        </div>
+
+        <div class="header-text">
+          <img src="{{footerImage}}" alt="Logo Direito" class="logo-in-text" />
+
+          <p class="lodge-name">Loja Maçônica João Pedro Junqueira nº 2181</p>
+          <p class="affiliation">Federada ao Grande Oriente do Brasil</p>
+          <p class="affiliation">
+            Jurisdicionada ao Grande Oriente do Brasil - Goiás
+          </p>
+        </div>
+      </header>
+      <p
+        class="mso-title"
+        align="center"
+        style="text-align: center; line-height: 1.2"
+      >
+        <b
+          ><span style="font-size: 12pt; line-height: 1.2"
+            >BALAÚSTRE Nº{{NumeroBalaustre}}/EM2025-2026</span
+          ></b
+        >
+      </p>
+
+      <p
+        class="mso-title"
+        align="center"
+        style="text-align: center; line-height: 1.2"
+      >
+        <b
+          ><span style="font-size: 12pt; line-height: 0.7"
+            >SESSÃO {{ClasseSessao_Titulo}}</span
+          ></b
+        >
+      </p>
+
+      <p
+        class="mso-title"
+        align="center"
+        style="text-align: center; line-height: 0.5; margin-bottom: 10mm"
+      >
+        <b
+          ><span style="font-size: 12pt; line-height: 1"
+            >À GL∴ DO SUPR∴ ARQ∴ DO UNIV∴</span
+          ></b
+        >
+      </p>
+
+      <p class="mso-normal" style="text-align: justify; line-height: normal">
+        <span
+          >Precisamente às {{HoraInicioSessao}} do dia {{DiaSessao}} da E∴ V∴, a
+          Augusta, Respeitável e Benfeitora Loja Simbólica João Pedro Junqueira
+          n° 2181, jurisdicionada ao Grande Oriente do Estado de Goiás, federada
+          ao Grande Oriente do Brasil, reuniu-se em seu Templo, sito à Avenida 9
+          – Área A-2, Conjunto Mirage, Oriente de Anápolis, Goiás, em Sessão
+          {{ClasseSessao_Corpo}}, com {{NumeroIrmaosQuadro}} irmãos do quadro e
+          {{NumeroVisitantes}} irmãos visitantes, ficando a Loja assim
+          constituída:
+        </span>
+        <b><span>V∴ Mestre</span></b
+        ><span> {{Veneravel}};</span> <b><span>1° Vig∴</span></b
+        ><span> {{PrimeiroVigilante}}; </span> <b><span>2° Vig∴</span></b
+        ><span> {{SegundoVigilante}}; </span> <b><span>Orad∴</span></b
+        ><span> {{Orador}}; </span> <b><span>Secr∴</span></b
+        ><span> {{Secretario}}; </span> <b><span>Tes∴</span></b
+        ><span> {{Tesoureiro}} e </span> <b><span>Chanc∴</span></b
+        ><span>
+          {{Chanceler}}, sendo os demais cargos preenchidos pelos seus titulares
+          ou Irmãos do Quadro.
+        </span>
+        <b>Balaústre:</b
+        ><span>
+          foi lido e aprovado o Balaústre da Sessão do dia
+          {{DataSessaoAnterior}}, {{EmendasBalaustreAnterior}} emendas.
+        </span>
+        <b>Expediente Recebido:</b><span> {{ExpedienteRecebido}}. </span>
+        <b>Expediente Expedido:</b><span> {{ExpedienteExpedido}}. </span>
+        <b>Saco de Propostas e Informação</b>:
+        <span>{{SacoProposta}}. </span>
+        <b>Ordem do Dia</b>: <span>{{OrdemDia}}. </span>
+        <b>Escrutínio Secreto</b>: <span>{{Escrutinio}}. </span>
+        <b>Tempo de Instrução:</b>
+        <span>{{TempoInstrucao}}.</span>
+        <b>Tronco de Beneficência:</b
+        ><span>
+          Fez o seu giro habitual pelo ir∴ Hospitaleiro, sendo entregue o seu
+          produto ao ir∴ Tesoureiro para conferência e, no momento oportuno, foi
+          anunciada a medalha cunhada de
+        </span>
+        <span>R$ {{TroncoBeneficiencia}},00 . </span>
+        <b>Palavra a Bem da Ordem em Geral e do Quadro em Particular</b>:
+        <span>{{Palavra}}.&nbsp;</span> <b>Encerramento:</b
+        ><span>
+          o Ven∴ Mestre encerrou a sessão às {{HoraEncerramento}}, tendo eu,
+          Secretário, lavrado o presente balaústre, que depois de lido, se
+          achado em tudo conforme, será assinado.
+        </span>
+      </p>
+
+      <p class="mso-normal" style="text-align: justify; line-height: 150%">
+        <span>{{Emendas}}</span>
+      </p>
+
+      <p
+        class="mso-normal"
+        align="right"
+        style="margin-top: 0cm; margin-bottom: 36pt; text-align: right"
+      >
+        <span>Oriente de Anápolis, {{DataAssinatura}} – E∴ V∴</span>
+      </p>
+
+      <table class="officers-table" style="width: 100%; border: none">
+        <tr>
+          <td style="width: 33%; text-align: center; border: none">
+            <p class="mso-sign-li" align="center" style="line-height: 0.2">
+              <span style="font-size: 10pt">___________________________</span>
+            </p>
+            <p class="mso-sign" align="center" style="line-height: normal">
+              <span style="font-size: 10pt">Secretário</span>
+            </p>
+          </td>
+          <td style="width: 33%; text-align: center; border: none">
+            <p class="mso-sign-li" align="center" style="line-height: 0.2">
+              <span style="font-size: 10pt">___________________________</span>
+            </p>
+            <p class="mso-sign" align="center" style="line-height: normal">
+              <span style="font-size: 10pt">Orador</span>
+            </p>
+          </td>
+          <td style="width: 33%; text-align: center; border: none">
+            <p class="mso-sign-li" align="center" style="line-height: 0.2">
+              <span style="font-size: 10pt">___________________________</span>
+            </p>
+            <p class="mso-sign" align="center" style="line-height: normal">
+              <span style="font-size: 10pt"> Venerável Mestre</span>
+            </p>
+          </td>
+        </tr>
+      </table>
+    </div>
+  </body>
+</html>

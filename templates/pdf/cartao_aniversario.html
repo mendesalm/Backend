@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cartão de Aniversário</title>
+    <style>
+        body {
+            font-family: "Open Sans", sans-serif;
+            text-align: center;
+            color: #800000; /* Vermelho escuro */
+            background-color: #FFF8DC; /* Bege claro */
+            padding: 20px;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh; /* Garante que o corpo ocupe a altura total da viewport */
+            box-sizing: border-box;
+        }
+        .card {
+            background-color: #FFFFFF; /* Fundo branco para o cartão */
+            border: 5px solid #FFD700; /* Borda dourada */
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Sombra suave */
+            max-width: 600px;
+            width: 90%;
+        }
+        .header-image {
+            max-width: 150px;
+            margin-bottom: 20px;
+        }
+        h1 {
+            font-family: 'Georgia', serif; /* Fonte mais formal para o título */
+            font-size: 3em;
+            margin-bottom: 10px;
+            color: #B22222; /* Vermelho tijolo */
+        }
+        h2 {
+            font-family: 'Palatino Linotype', 'Book Antiqua', Palatino, serif;
+            font-size: 2em;
+            color: #4682B4; /* Azul aço */
+            margin-bottom: 20px;
+        }
+        p {
+            font-family: 'Times New Roman', serif;
+            font-size: 1.2em;
+            line-height: 1.6;
+            color: #36454F; /* Cinza carvão */
+            margin-bottom: 15px;
+        }
+        .signature {
+            margin-top: 40px;
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #800000;
+        }
+        .footer-image {
+            max-width: 100px;
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <img src="{{headerImage}}" alt="Logo Superior" class="header-image">
+        <h1>Feliz Aniversário!</h1>
+        <h2>Querido(a) {{NOME_ANIVERSARIANTE}},</h2>
+        <p>Neste dia tão especial, desejamos que a alegria, a paz e a felicidade preencham seu coração.</p>
+        <p>Que a vida lhe reserve muitas bênçãos, saúde e sucesso em todos os seus caminhos.</p>
+        <p>Que este novo ciclo seja repleto de realizações e momentos inesquecíveis.</p>
+        <p class="signature">Com carinho, <br>A Loja Maçônica João Pedro Junqueira nº 2181</p>
+        <img src="{{footerImage}}" alt="Logo Inferior" class="footer-image">
+    </div>
+</body>
+</html>

@@ -1,6 +1,5 @@
 // backend/services/chanceler.service.js
 import db from "../models/index.js";
-import { createCartaoAniversarioFromTemplate } from "./googleDocs.service.js";
 import { Op } from "sequelize";
 
 // Função auxiliar para normalizar uma data para um ano comum para comparação
@@ -145,38 +144,4 @@ export const getChancelerPanelData = async (dataInicio, dataFim) => {
   return { aniversariosCivis, aniversariosMaconicos, aniversariosCasamento };
 };
 
-/**
- * Prepara os dados e chama o serviço do Google Docs para gerar o PDF do cartão.
- */
-export const gerarCartaoAniversarioPDF = async (aniversariante) => {
-  try {
-    const hoje = new Date();
-    const dataFormatada = new Date(
-      aniversariante.dataNascimento
-    ).toLocaleDateString("pt-BR", {
-      day: "2-digit",
-      month: "long",
-    });
 
-    const placeholders = {
-      NOME_ANIVERSARIANTE: aniversariante.nome,
-      DATA_ANIVERSARIO: dataFormatada,
-      ANO_ATUAL: hoje.getFullYear().toString(),
-    };
-
-    const resultado = await createCartaoAniversarioFromTemplate(placeholders);
-    if (!resultado || !resultado.pdfPath) {
-      throw new Error(
-        "Falha ao obter o caminho do PDF gerado pelo googleDocs.service."
-      );
-    }
-
-    return resultado.pdfPath;
-  } catch (error) {
-    console.error(
-      "Erro no serviço do Chanceler ao gerar cartão de aniversário:",
-      error
-    );
-    throw error;
-  }
-};

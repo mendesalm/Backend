@@ -1,14 +1,13 @@
 // backend/controllers/masonicsession.controller.js
 import db from "../models/index.js";
-import path from "path";
-import { Op } from "sequelize";
 
 // --- Serviços ---
 import {
   createBalaustreFromTemplate,
   createEditalFromTemplate,
-  deleteGoogleFile,
-} from "../services/googleDocs.service.js";
+  createCartaoAniversarioFromTemplate,
+  deleteLocalFile,
+} from "../services/documents.service.js";
 import { avancarEscalaSequencialEObterResponsavel } from "../services/escala.service.js";
 import { enviarEditalDeConvocacaoPorEmail } from "../services/notification.service.js";
 
@@ -283,13 +282,12 @@ export const createSession = async (req, res) => {
     };
 
     const [balaustreInfo, editalInfo] = await Promise.all([
-      createBalaustreFromTemplate(dadosParaTemplate),
+      createBalaustreFromTemplate(dadosParaTemplate, novaSessao.id),
       createEditalFromTemplate(dadosParaTemplate),
     ]);
 
     const sessaoParaAtualizar = await db.MasonicSession.findByPk(novaSessao.id);
     await sessaoParaAtualizar.update({
-      editalGoogleDocId: editalInfo.googleDocId,
       caminhoEditalPdf: editalInfo.pdfPath,
     });
 
@@ -298,7 +296,6 @@ export const createSession = async (req, res) => {
       ano: sessionDate.getFullYear(),
       path: balaustreInfo.pdfPath,
       MasonicSessionId: novaSessao.id,
-      googleDocId: balaustreInfo.googleDocId,
       caminhoPdfLocal: balaustreInfo.pdfPath,
       dadosFormulario: dadosParaTemplate,
     });
@@ -445,16 +442,16 @@ export const deleteSession = async (req, res) => {
       }
     }
 
-    // Deleta arquivos associados no Google Drive
-    if (session.editalGoogleDocId) {
-      await deleteGoogleFile(session.editalGoogleDocId).catch((err) =>
-        console.error("Falha ao deletar edital do Google Drive:", err)
+    // Deleta arquivos associados localmente
+    if (session.caminhoEditalPdf) {
+      await deleteLocalFile(session.caminhoEditalPdf).catch((err) =>
+        console.error("Falha ao deletar edital local:", err)
       );
     }
     const balaustre = await session.getBalaustre({ transaction });
-    if (balaustre && balaustre.googleDocId) {
-      await deleteGoogleFile(balaustre.googleDocId).catch((err) =>
-        console.error("Falha ao deletar balaústre do Google Drive:", err)
+    if (balaustre && balaustre.caminhoPdfLocal) {
+      await deleteLocalFile(balaustre.caminhoPdfLocal).catch((err) =>
+        console.error("Falha ao deletar balaústre local:", err)
       );
     }
 

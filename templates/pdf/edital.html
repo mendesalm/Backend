@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edital de Convocação</title>
+    <style>
+        body {
+            font-family: "Open Sans", sans-serif;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header img {
+            max-width: 150px;
+            margin-bottom: 10px;
+        }
+        .header h1 {
+            font-size: 24px;
+            color: #0056b3;
+        }
+        .content {
+            line-height: 1.8;
+            margin-bottom: 20px;
+        }
+        .footer {
+            text-align: center;
+            font-size: 12px;
+            color: #777;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <img src="{{headerImage}}" alt="Logo da Loja">
+        <h1>EDITAL DE CONVOCAÇÃO</h1>
+        <p>Loja Maçônica João Pedro Junqueira nº 2181</p>
+        <p>Federada ao Grande Oriente do Brasil</p>
+        <p>Jurisdicionada ao Grande Oriente do Brasil - Goiás</p>
+    </div>
+
+    <div class="content">
+        <p>Prezados Irmãos,</p>
+        <p>Temos a honra de convocar a todos para a <strong>Sessão {{tipo_sessao}}</strong>, que será realizada no dia <strong>{{data_sessao_extenso}}</strong>, uma {{dia_semana}}, às <strong>{{hora_sessao}}</strong>, no Templo da Loja.</p>
+        <p>Contamos com a valiosa presença de todos para o engrandecimento de nossos trabalhos.</p>
+        <p>Fraternalmente,</p>
+        <p>A Administração da Loja.</p>
+    </div>
+
+    <div class="footer">
+        <p>Este edital foi gerado automaticamente pelo sistema.</p>
+        <img src="{{footerImage}}" alt="Logo Rodapé">
+    </div>
+</body>
+</html>

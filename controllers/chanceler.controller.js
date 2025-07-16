@@ -1,10 +1,8 @@
 // backend/controllers/chanceler.controller.js
 import db from "../models/index.js";
 // Importa as funções corretas do serviço
-import {
-  getChancelerPanelData,
-  gerarCartaoAniversarioPDF,
-} from "../services/chanceler.service.js";
+import { getChancelerPanelData } from "../services/chanceler.service.js";
+import { createCartaoAniversarioFromTemplate } from "../services/documents.service.js";
 
 /**
  * Controller para buscar os dados para o Painel do Chanceler.
@@ -95,10 +93,10 @@ export const gerarCartaoManual = async (req, res) => {
         });
     }
 
-    const caminhoPDF = await gerarCartaoAniversarioPDF(aniversariante);
+    const { pdfPath } = await createCartaoAniversarioFromTemplate(aniversariante);
     res
       .status(200)
-      .json({ message: "Cartão gerado com sucesso!", caminho: caminhoPDF });
+      .json({ message: "Cartão gerado com sucesso!", caminho: pdfPath });
   } catch (error) {
     res
       .status(500)
