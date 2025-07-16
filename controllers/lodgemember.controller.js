@@ -270,7 +270,11 @@ export const createLodgeMember = async (req, res) => {
 
 export const getAllLodgeMembers = async (req, res) => {
   try {
-    const { search, statusCadastro } = req.query;
+    const { search, statusCadastro, page = 1, limit = 10 } = req.query;
+    const parsedPage = parseInt(page, 10);
+    const parsedLimit = parseInt(limit, 10);
+    const offset = (parsedPage - 1) * parsedLimit;
+
     const whereClause = {};
 
     if (statusCadastro) {
@@ -285,7 +289,7 @@ export const getAllLodgeMembers = async (req, res) => {
       ];
     }
 
-    const members = await db.LodgeMember.findAll({
+    const { count, rows } = await db.LodgeMember.findAndCountAll({
       where: whereClause,
       attributes: { exclude: ["password"] },
       order: [["NomeCompleto", "ASC"]],
@@ -295,10 +299,17 @@ export const getAllLodgeMembers = async (req, res) => {
           as: "cargos",
           required: false,
         },
+        {
+          model: db.FamilyMember,
+          as: "familiares",
+          required: false,
+        },
       ],
+      limit: parsedLimit,
+      offset: offset,
     });
 
-    const membersWithCurrentCargo = members.map((member) => {
+    const membersWithCurrentCargo = rows.map((member) => {
       const memberJson = member.toJSON();
       const currentCargo = memberJson.cargos.find((cargo) => {
         const dataInicio = new Date(cargo.dataInicio);
@@ -316,7 +327,13 @@ export const getAllLodgeMembers = async (req, res) => {
       return memberJson;
     });
 
-    res.status(200).json(membersWithCurrentCargo);
+    const totalPages = Math.ceil(count / parsedLimit);
+
+    res.status(200).json({
+      data: membersWithCurrentCargo,
+      totalPages: totalPages,
+      currentPage: parsedPage,
+    });
   } catch (error) {
     res
       .status(500)

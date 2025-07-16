@@ -71,6 +71,15 @@ async function createPdfFromTemplate(
   const openSansBoldBase64 = readFileSync(
     path.join(__dirname, "..", "assets", "fonts", "OpenSans-Bold.ttf")
   ).toString("base64");
+  const oleoScriptRegularBase64 = readFileSync(
+    path.join(__dirname, "..", "assets", "fonts", "OleoScript-Regular.ttf")
+  ).toString("base64");
+  const oleoScriptBoldBase64 = readFileSync(
+    path.join(__dirname, "..", "assets", "fonts", "OleoScript-Bold.ttf")
+  ).toString("base64");
+  const greatVibesRegularBase64 = readFileSync(
+    path.join(__dirname, "..", "assets", "fonts", "GreatVibes-Regular.ttf")
+  ).toString("base64");
 
   // Inject @font-face rules with Base64 encoded fonts into the HTML
   const fontStyles = `
@@ -98,6 +107,24 @@ async function createPdfFromTemplate(
       font-weight: bold;
       font-style: normal;
     }
+    @font-face {
+      font-family: "Oleo Script";
+      src: url("data:font/truetype;charset=utf-8;base64,${oleoScriptRegularBase64}") format("truetype");
+      font-weight: normal;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: "Oleo Script";
+      src: url("data:font/truetype;charset=utf-8;base64,${oleoScriptBoldBase64}") format("truetype");
+      font-weight: bold;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: "Great Vibes";
+      src: url("data:font/truetype;charset=utf-8;base64,${greatVibesRegularBase64}") format("truetype");
+      font-weight: normal;
+      font-style: normal;
+    }
   `;
 
   // Find the closing </style> tag and insert the new font styles before it
@@ -107,6 +134,7 @@ async function createPdfFromTemplate(
   // Assumindo que os templates usam {{headerImage}} e {{footerImage}}
   data.headerImage = imageToBase64("assets/images/logoJPJ_.png");
   data.footerImage = imageToBase64("assets/images/logoRB_.png");
+  data.backgroundImage = imageToBase64("assets/images/cartao_fundo.svg");
 
   // Substitui os placeholders no HTML
   Object.entries(data).forEach(([key, value]) => {
@@ -119,7 +147,13 @@ async function createPdfFromTemplate(
     mkdirSync(pdfDir, { recursive: true });
   }
 
-  const sanitizedTitle = newDocTitle.replace(/[^a-z0-9]/gi, "_").toLowerCase();
+  const sanitizedTitle = newDocTitle
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "") // Remove diacritics
+    .replace(/[^a-zA-Z0-9\s-]/g, "") // Allow alphanumeric, spaces, and hyphens
+    .replace(/\s+/g, "-") // Replace spaces with hyphens
+    .replace(/-+/g, "-") // Replace multiple hyphens with a single hyphen
+    .toLowerCase();
   const pdfFileName = `${sanitizedTitle}_${Date.now()}.pdf`;
   const pdfFilePath = path.join(pdfDir, pdfFileName);
 
@@ -127,7 +161,8 @@ async function createPdfFromTemplate(
 
   await page.pdf({
     path: pdfFilePath,
-    format: "A4",
+    format: "A3",
+    landscape: true,
     printBackground: true,
     margin: {
       top: "1cm",
@@ -175,6 +210,9 @@ async function createPdfFromTemplate(
   const relativePath = path
     .join("uploads", pdfSubfolder, pdfFileName)
     .replace(/\\/g, "/");
+
+  console.log(`[PDFService] PDF salvo em: ${pdfFilePath}`);
+  console.log(`[PDFService] Caminho relativo para frontend: /${relativePath}`);
 
   return {
     pdfPath: `/${relativePath}`,

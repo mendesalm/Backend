@@ -49,10 +49,18 @@ export const getChanceryReportsPage = async (req, res) => {
   }
 };
 
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { formatInTimeZone } from "date-fns-tz";
+
 export const gerarCartaoManual = async (req, res) => {
   const { memberId, familyMemberId } = req.body;
   try {
-    let aniversariante;
+    let aniversarianteData = {};
+    let dataNascimento;
+    let nomeCompleto;
+    let parentesco;
+
     if (memberId) {
       const membro = await db.LodgeMember.findByPk(memberId, {
         attributes: ["NomeCompleto", "DataNascimento", "Situacao"],
@@ -65,13 +73,12 @@ export const gerarCartaoManual = async (req, res) => {
           .json({
             message: `Não é possível gerar cartão para um membro com situação "${membro.Situacao}".`,
           });
-      aniversariante = {
-        nome: membro.NomeCompleto,
-        dataNascimento: membro.DataNascimento,
-      };
+      nomeCompleto = membro.NomeCompleto;
+      dataNascimento = membro.DataNascimento;
+      aniversarianteData.VOCATIVO = "Querido Irmão";
     } else if (familyMemberId) {
       const familiar = await db.FamilyMember.findByPk(familyMemberId, {
-        attributes: ["nomeCompleto", "dataNascimento", "falecido"],
+        attributes: ["nomeCompleto", "dataNascimento", "falecido", "parentesco"],
       });
       if (!familiar)
         return res.status(404).json({ message: "Familiar não encontrado." });
@@ -81,10 +88,23 @@ export const gerarCartaoManual = async (req, res) => {
           .json({
             message: "Não é possível gerar cartão para um familiar falecido.",
           });
-      aniversariante = {
-        nome: familiar.nomeCompleto,
-        dataNascimento: familiar.dataNascimento,
-      };
+      nomeCompleto = familiar.nomeCompleto;
+      dataNascimento = familiar.dataNascimento;
+      parentesco = familiar.parentesco;
+
+      switch (parentesco) {
+        case "Cônjuge":
+          aniversarianteData.VOCATIVO = "Querida Cunhada";
+          break;
+        case "Filho":
+          aniversarianteData.VOCATIVO = "Querido Sobrinho";
+          break;
+        case "Filha":
+          aniversarianteData.VOCATIVO = "Querida Sobrinha";
+          break;
+        default:
+          aniversarianteData.VOCATIVO = "Prezado(a)"; // Fallback
+      }
     } else {
       return res
         .status(400)
@@ -93,11 +113,18 @@ export const gerarCartaoManual = async (req, res) => {
         });
     }
 
-    const { pdfPath } = await createCartaoAniversarioFromTemplate(aniversariante);
+    // Formatar a data de nascimento para o template
+    
+    aniversarianteData.NOME_ANIVERSARIANTE = nomeCompleto;
+    aniversarianteData.DATA_ANIVERSARIO = formatInTimeZone(dataNascimento, 'America/Sao_Paulo', "dd 'de' MMMM", { locale: ptBR });
+    aniversarianteData.ANO_ATUAL = format(new Date(), "yyyy");
+
+    const { pdfPath } = await createCartaoAniversarioFromTemplate(aniversarianteData);
     res
       .status(200)
       .json({ message: "Cartão gerado com sucesso!", caminho: pdfPath });
   } catch (error) {
+    console.error("Erro ao gerar cartão manual:", error);
     res
       .status(500)
       .json({
