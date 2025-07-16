@@ -13,11 +13,7 @@
         color: #333;
       }
 
-      span,
-      p,
-      b {
-        font-family: "Poppins", sans-serif;
-      }
+      
       .document-content {
         margin: 0; /* Removendo margem para que as margens do PDF sejam as únicas */
       }
@@ -28,6 +24,8 @@
         align-items: center;
         height: 2cm; /* Altura máxima do cabeçalho (3cm * 0.7 - 1mm) */
         overflow: hidden; /* Esconder conteúdo que exceda a altura */
+        margin-top: 0.05cm;
+        margin-right: 0.1cm;
       }
 
       /* Estilo para a coluna do logo esquerdo */
@@ -68,7 +66,7 @@
       .header-text .lodge-name {
         margin: 0; /* Remover margens */
         font-family: serif;
-        font-size: 1.4em; /* Reduzir tamanho da fonte */
+        font-size: 1.2em; /* Reduzir tamanho da fonte */
         font-weight: bold;
         line-height: 1.1;
         text-transform: uppercase;
@@ -106,8 +104,7 @@
       .mso-sign {
         text-align: center;
       }
-      .mso-sign-li {
-        text-align: center;
+      .mso-sign-li span {
         font-family: "Open Sans", sans-serif; /* Usando Open Sans para a linha */
       }
       .officers-table {
@@ -132,12 +129,7 @@
       }
       /* Specific styles from the Word HTML that might be useful, adapted */
 
-      /* Padronizando todas as fontes para Open Sans */
-      span,
-      p,
-      b {
-        font-family: "Open Sans", sans-serif;
-      }
+      
     </style>
   </head>
   <body>

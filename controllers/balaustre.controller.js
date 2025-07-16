@@ -67,6 +67,15 @@ export const updateBalaustre = async (req, res) => {
 
     await balaustre.save();
 
+    // Tenta deletar o PDF antigo após a atualização bem-sucedida
+    if (oldPdfPath) {
+      try {
+        await deleteLocalFile(oldPdfPath);
+      } catch (deleteError) {
+        console.warn(`Erro ao deletar o PDF antigo ${oldPdfPath}:`, deleteError);
+      }
+    }
+
     res
       .status(200)
       .json({
