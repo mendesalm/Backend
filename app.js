@@ -44,6 +44,7 @@ import chancelerRoutes from "./routes/chanceler.routes.js"; // 1. Importar a rot
 import documentoGeradoRoutes from "./routes/documentoGerado.routes.js";
 import solicitacaoRoutes from "./routes/solicitacao.routes.js";
 import lojaRoutes from "./routes/loja.routes.js";
+import corpoMensagemRoutes from "./routes/corpoMensagem.routes.js";
 // Importa o agendador de tarefas
 import { startScheduler } from "./scheduler.js";
 
@@ -122,6 +123,7 @@ const startServer = async () => {
     app.use("/api/chanceler", chancelerRoutes);
     app.use("/api/documentos-gerados", documentoGeradoRoutes);
     app.use("/api/lojas", lojaRoutes);
+    app.use("/api/mensagens", corpoMensagemRoutes);
 
     // Iniciar o servidor
     app.listen(PORT, () => {

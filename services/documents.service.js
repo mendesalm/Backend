@@ -3,6 +3,7 @@ import { readFileSync, mkdirSync, existsSync, unlinkSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import puppeteer from "puppeteer";
+import { Op, fn } from 'sequelize';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,7 +42,8 @@ async function createPdfFromTemplate(
   templateName,
   data,
   newDocTitle,
-  pdfSubfolder
+  pdfSubfolder,
+  pdfOptions = {}
 ) {
   const browser = await puppeteer.launch({
     headless: true,
@@ -159,10 +161,9 @@ async function createPdfFromTemplate(
 
   await page.setContent(htmlContent, { waitUntil: "networkidle0" });
 
-  await page.pdf({
-    path: pdfFilePath,
-    format: "A3",
-    landscape: true,
+  const defaultPdfOptions = {
+    format: "A4",
+    landscape: false,
     printBackground: true,
     margin: {
       top: "1cm",
@@ -170,39 +171,14 @@ async function createPdfFromTemplate(
       bottom: "1cm",
       left: "1.5cm",
     },
-    displayHeaderFooter: true,
-    footerTemplate: `<div style="
-        position: absolute;
-        top: 1cm;
-        left: 1.5cm;
-        right: 1.5cm;
-        bottom: 1cm;
-        border: 1pt solid #800;
-        pointer-events: none;
-    "></div>
-    <div style="
-        position: absolute;
-        bottom: 0.5cm; /* Ajuste para ficar próximo à margem inferior */
-        left: 0;
-        right: 0;
-        text-align: center;
-        font-size: 10px;
-    ">
-        <div style="
-            display: inline-flex;
-            justify-content: center;
-            align-items: center;
-            width: 8mm; /* 4mm de raio * 2 */
-            height: 8mm; /* 4mm de raio * 2 */
-            border-radius: 50%;
-            border: 1px solid #800;
-            background-color: #f0f0f0;
-            color: #333;
-        ">
-            <span class="pageNumber"></span> / <span class="totalPages"></span>
-        </div>
-    </div>`,
-    headerTemplate: "<div></div>", // Header vazio para evitar problemas
+    displayHeaderFooter: false, // Default to false, enable per-template
+  };
+
+  const finalPdfOptions = { ...defaultPdfOptions, ...pdfOptions };
+
+  await page.pdf({
+    path: pdfFilePath,
+    ...finalPdfOptions,
   });
 
   await browser.close();
@@ -357,24 +333,120 @@ export async function createBalaustreFromTemplate(data, masonicSessionId) {
 
   const processedData = prepareDataForBalaustre(data);
   const title = `Balaústre N° ${data.NumeroBalaustre} - ${processedData.ClasseSessao_Titulo} de ${data.DiaSessao}`;
+  const pdfOptions = {
+    format: "A4", // Formato original do balaústre
+    landscape: false,
+    displayHeaderFooter: true,
+    footerTemplate: `<div style="
+        position: absolute;
+        top: 1cm;
+        left: 1.5cm;
+        right: 1.5cm;
+        bottom: 1cm;
+        border: 1pt solid #800;
+        pointer-events: none;
+    "></div>
+    <div style="
+        position: absolute;
+        bottom: 0.5cm;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-size: 10px;
+    ">
+        <div style="
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            width: 8mm;
+            height: 8mm;
+            border-radius: 50%;
+            border: 1px solid #800;
+            background-color: #f0f0f0;
+            color: #333;
+        ">
+            <span class="pageNumber"></span> / <span class="totalPages"></span>
+        </div>
+    </div>`,
+    headerTemplate: "<div></div>",
+  };
 
-  return createPdfFromTemplate("balaustre", processedData, title, "balaustres");
+
+  return createPdfFromTemplate(
+    "balaustre",
+    processedData,
+    title,
+    "balaustres",
+    pdfOptions
+  );
 }
 
 export const createEditalFromTemplate = async (editalData) => {
   const title = `Edital de Convocação - Sessão de ${editalData.dia_semana} ${editalData.data_sessao_extenso}`;
-  return createPdfFromTemplate("edital", editalData, title, "editais");
+  const pdfOptions = {
+    format: "A4",
+    landscape: false,
+  };
+
+  return createPdfFromTemplate(
+    "edital",
+    editalData,
+    title,
+    "editais",
+    pdfOptions
+  );
 };
 
 export const createCartaoAniversarioFromTemplate = async (
-  aniversarianteData
+  db,
+  aniversarianteData,
+  subtipoMensagem
 ) => {
+  // 1. Buscar Venerável Mestre atual
+  const hoje = new Date();
+  const veneravelMestreCargo = await db.CargoExercido.findOne({
+    where: {
+      nomeCargo: 'Venerável Mestre',
+      dataInicio: { [Op.lte]: hoje },
+      [Op.or]: [
+        { dataTermino: { [Op.gte]: hoje } },
+        { dataTermino: null }
+      ]
+    },
+    include: [{ model: db.LodgeMember, as: 'membro', attributes: ['NomeCompleto'] }]
+  });
+  const nomeVeneravel = veneravelMestreCargo ? veneravelMestreCargo.membro.NomeCompleto : 'Venerável Mestre não encontrado';
+
+  // 2. Buscar mensagem aleatória
+  const mensagemAleatoria = await db.CorpoMensagem.findOne({
+    where: { tipo: 'ANIVERSARIO', subtipo: subtipoMensagem, ativo: true },
+    order: db.sequelize.random() // Ou fn('RAND') para MySQL
+  });
+  if (!mensagemAleatoria) {
+    throw new Error(`Nenhuma mensagem de aniversário ativa encontrada para o subtipo '${subtipoMensagem}'.`);
+  }
+
+  // 3. Injetar a mensagem e o nome do Venerável Mestre nos dados
+  const finalData = {
+    ...aniversarianteData,
+    MENSAGEM_DINAMICA: mensagemAleatoria.conteudo,
+    VENERAVEL: nomeVeneravel,
+  };
+
   const title = `Cartão de Aniversário - ${aniversarianteData.NOME_ANIVERSARIANTE}`;
+  const pdfOptions = {
+    format: "A5",
+    landscape: true,
+    printBackground: true,
+    margin: { top: "0", right: "0", bottom: "0", left: "0" },
+  };
+
   return createPdfFromTemplate(
-    "cartao_aniversario",
-    aniversarianteData,
+    "cartao_aniversario", // Nome do template HTML
+    finalData,
     title,
-    "cartoes_aniversario"
+    "cartoes_aniversario",
+    pdfOptions
   );
 };
 

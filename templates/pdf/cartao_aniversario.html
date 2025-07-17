@@ -9,7 +9,7 @@
         font-family: "Oleo Script", cursive;
         text-align: center;
         color: #380404; /* Vermelho escuro */
-        background-image: url('{{backgroundImage}}');
+        background-image: url("{{backgroundImage}}");
         background-size: cover;
         background-repeat: no-repeat;
         background-position: center center;
@@ -23,21 +23,18 @@
         box-sizing: border-box;
       }
       .content {
-        background-color: rgba(255, 255, 255, 0.8); /* Fundo semi-transparente para o texto */
-        padding: 40px;
+        padding: 20px;
         border-radius: 15px;
-        max-width: 80%; /* Ajuste a largura máxima conforme necessário */
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        max-width: 85%; /* Ajuste a largura máxima conforme necessário */
       }
       h2 {
-        font-size: 2.5em;
-        color: #b22222; /* Vermelho tijolo */
-        margin-bottom: 20px;
+        font-size: 2.2em;
+        color: #380404; /* Vermelho tijolo */
       }
       p {
         font-size: 1.2em;
-        line-height: 1.6;
-        color: #36454f; /* Cinza carvão */
+        line-height: 1.2;
+        color: #513e03;
         margin-bottom: 15px;
       }
       p:last-of-type {
@@ -51,12 +48,12 @@
         margin-bottom: 5px;
       }
       .signature-title {
-        font-size: 1.1em;
+        font-size: 1em;
         font-weight: bold;
         margin-bottom: 5px;
       }
       .date-location {
-        font-size: 1em;
+        font-size: 0.8em;
       }
     </style>
   </head>
@@ -64,13 +61,14 @@
     <div class="content">
       <p>{{VOCATIVO}}</p>
       <h2>{{NOME_ANIVERSARIANTE}}</h2>
-      <p>A cada ano que se completa, a régua do tempo marca a evolução de nossa construção interior.</p>
-      <p>Hoje, celebramos a passagem de mais um ano em sua nobre existência, um presente do Supremo Arquiteto do Universo.</p>
-      <p>Que neste novo ciclo, a Luz da sabedoria continue a guiar seu esquadro e seu compasso, e que a alegria e a saúde floresçam em sua vida e no seio de sua família.</p>
-      <p>Com os mais sinceros votos de felicidade, receba o tríplice fraternal abraço de todos os seus Irmãos.</p>
-      <p class="signature-name">José Antônio Lisboa</p>
-      <p class="signature-title">Venerável Mestre da A∴R∴B∴L∴S∴ João Pedro Junqueira Nº 2181</p>
-      <p class="date-location">Oriente de Anápolis, {{DATA_ANIVERSARIO}} de {{ANO_ATUAL}}.</p>
+      <p>{{MENSAGEM_DINAMICA}}</p>
+      <p class="signature-name">{{VENERAVEL}}</p>
+      <p class="signature-title">
+        Venerável Mestre da A∴R∴B∴L∴S∴ João Pedro Junqueira Nº 2181
+      </p>
+      <p class="date-location">
+        Oriente de Anápolis, {{DATA_ANIVERSARIO}} de {{ANO_ATUAL}}.
+      </p>
     </div>
   </body>
 </html>

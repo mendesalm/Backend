@@ -60,6 +60,7 @@ export const gerarCartaoManual = async (req, res) => {
     let dataNascimento;
     let nomeCompleto;
     let parentesco;
+    let subtipoMensagem;
 
     if (memberId) {
       const membro = await db.LodgeMember.findByPk(memberId, {
@@ -76,6 +77,7 @@ export const gerarCartaoManual = async (req, res) => {
       nomeCompleto = membro.NomeCompleto;
       dataNascimento = membro.DataNascimento;
       aniversarianteData.VOCATIVO = "Querido Irmão";
+      subtipoMensagem = "IRMAO";
     } else if (familyMemberId) {
       const familiar = await db.FamilyMember.findByPk(familyMemberId, {
         attributes: ["nomeCompleto", "dataNascimento", "falecido", "parentesco"],
@@ -95,15 +97,19 @@ export const gerarCartaoManual = async (req, res) => {
       switch (parentesco) {
         case "Cônjuge":
           aniversarianteData.VOCATIVO = "Querida Cunhada";
+          subtipoMensagem = "CUNHADA";
           break;
         case "Filho":
           aniversarianteData.VOCATIVO = "Querido Sobrinho";
+          subtipoMensagem = "SOBRINHO";
           break;
         case "Filha":
           aniversarianteData.VOCATIVO = "Querida Sobrinha";
+          subtipoMensagem = "SOBRINHO";
           break;
         default:
           aniversarianteData.VOCATIVO = "Prezado(a)"; // Fallback
+          subtipoMensagem = "FAMILIAR"; // Fallback para subtipo
       }
     } else {
       return res
@@ -119,7 +125,7 @@ export const gerarCartaoManual = async (req, res) => {
     aniversarianteData.DATA_ANIVERSARIO = formatInTimeZone(dataNascimento, 'America/Sao_Paulo', "dd 'de' MMMM", { locale: ptBR });
     aniversarianteData.ANO_ATUAL = format(new Date(), "yyyy");
 
-    const { pdfPath } = await createCartaoAniversarioFromTemplate(aniversarianteData);
+    const { pdfPath } = await createCartaoAniversarioFromTemplate(db, aniversarianteData, subtipoMensagem);
     res
       .status(200)
       .json({ message: "Cartão gerado com sucesso!", caminho: pdfPath });
