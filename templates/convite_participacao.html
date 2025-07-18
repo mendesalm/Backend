@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Convite de Participação</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f4f4f4;
+        }
+        .container {
+            width: 100%;
+            max-width: 210mm; /* A5 width */
+            height: 148mm; /* A5 height */
+            padding: 20px;
+            border: 1px solid #ccc;
+            background-color: #fff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .header, .footer {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .header img {
+            max-width: 100px;
+            margin-bottom: 10px;
+        }
+        .content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+        h1 {
+            font-size: 24px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        p {
+            font-size: 16px;
+            line-height: 1.5;
+            color: #555;
+            margin-bottom: 10px;
+        }
+        .highlight {
+            font-weight: bold;
+            color: #000;
+        }
+        .signature {
+            margin-top: 30px;
+            font-size: 14px;
+            color: #777;
+        }
+        @page {
+            size: A5 landscape;
+            margin: 0;
+        }
+        body {
+            width: 210mm;
+            height: 148mm;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            width: 100%;
+            height: 100%;
+            padding: 20px;
+            box-sizing: border-box;
+            border: none; /* Remove border for print */
+            box-shadow: none; /* Remove shadow for print */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="{{headerImage}}" alt="Logo da Loja" style="max-width: 80px;">
+            <h1>CONVITE DE PARTICIPAÇÃO</h1>
+        </div>
+        <div class="content">
+            <p>A <span class="highlight">Loja Maçônica João Pedro Junqueira nº 2181</span> tem a honra de convidar V.S. para participar da</p>
+            <p><span class="highlight">{{ClasseSessao}}</span></p>
+            <p>que será realizada no dia <span class="highlight">{{DiaSessao}}</span>, às <span class="highlight">{{hora_sessao}}</span>, em seu Templo.</p>
+            <p>Contamos com a sua valiosa presença para abrilhantar nossos trabalhos.</p>
+            <p>Fraternalmente,</p>
+        </div>
+        <div class="footer">
+            <p class="signature">{{Veneravel}}</p>
+            <p class="signature">Venerável Mestre</p>
+            <p class="signature">Loja Maçônica João Pedro Junqueira nº 2181</p>
+            <p class="signature">Av-9, Área A-2, Conjunto Mirage, Oriente de Anápolis, Goiás.</p>
+        </div>
+    </div>
+</body>
+</html>

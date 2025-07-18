@@ -26,13 +26,23 @@ const imageToBase64 = (imgPath) => {
 
 // Função auxiliar para preparar o conteúdo HTML com dados e fontes
 const prepareHtmlForPdf = (templateName, data) => {
-  const templatePath = path.join(
-    __dirname,
-    "..",
-    "templates",
-    "pdf",
-    `${templateName}.html`
-  );
+  let templatePath;
+  if (templateName === "convite_participacao") {
+    templatePath = path.join(
+      __dirname,
+      "..",
+      "templates",
+      `${templateName}.html`
+    );
+  } else {
+    templatePath = path.join(
+      __dirname,
+      "..",
+      "templates",
+      "pdf",
+      `${templateName}.html`
+    );
+  }
   let htmlContent = readFileSync(templatePath, "utf8");
 
   const poppinsRegularBase64 = readFileSync(
@@ -207,6 +217,40 @@ async function generateCartaoPdf(data) {
   return { pdfPath: `/${relativePath}` };
 }
 
+/**
+ * [ISOLADA] Gera o PDF de um Convite de Participação com suas configurações específicas.
+ */
+async function generateConvitePdf(data) {
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+  });
+  const page = await browser.newPage();
+  const htmlContent = prepareHtmlForPdf("convite_participacao", data);
+
+  const pdfDir = path.join(process.cwd(), "uploads", "convites");
+  if (!existsSync(pdfDir)) mkdirSync(pdfDir, { recursive: true });
+
+  const pdfFileName = `convite_${data.formattedDateForFilename}.pdf`;
+  const pdfFilePath = path.join(pdfDir, pdfFileName);
+
+  await page.setContent(htmlContent, { waitUntil: "networkidle0" });
+
+  await page.pdf({
+    path: pdfFilePath,
+    format: "A5",
+    landscape: true,
+    printBackground: true,
+    margin: { top: "0", right: "0", bottom: "0", left: "0" },
+  });
+
+  await browser.close();
+  const relativePath = path
+    .join("uploads", "convites", pdfFileName)
+    .replace(/\\/g, "/");
+  return { pdfPath: `/${relativePath}` };
+}
+
 // --- Funções Públicas de Orquestração ---
 
 export async function createBalaustreFromTemplate(data, masonicSessionId) {
@@ -286,6 +330,11 @@ export async function createCartaoAniversarioFromTemplate(
   // A lógica para buscar dados do BD foi movida para o controller/serviço que chama esta função.
   // Esta função agora foca apenas na geração do PDF com os dados recebidos.
   return generateCartaoPdf(aniversarianteData);
+}
+
+export async function createConviteFromTemplate(conviteData) {
+  const pdfResult = await generateConvitePdf(conviteData);
+  return pdfResult;
 }
 
 const prepareDataForBalaustre = (d) => {

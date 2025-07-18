@@ -59,6 +59,7 @@ export default (sequelize, DataTypes) => {
       conjugeResponsavelJantarNome: { type: DataTypes.STRING, allowNull: true },
       caminhoEditalPdf: { type: DataTypes.STRING, allowNull: true },
       caminhoBalaustrePdf: { type: DataTypes.STRING, allowNull: true },
+      caminhoConvitePdf: { type: DataTypes.STRING, allowNull: true },
       // responsavelJantarLodgeMemberId é FK
       classeSessao: {
         type: DataTypes.VIRTUAL,

@@ -7,6 +7,7 @@ import { ptBR } from "date-fns/locale";
 import {
   createBalaustreFromTemplate,
   createEditalFromTemplate,
+  createConviteFromTemplate,
   deleteLocalFile,
 } from "../services/documents.service.js";
 import { avancarEscalaSequencialEObterResponsavel } from "../services/escala.service.js";
@@ -71,6 +72,23 @@ export const getAllSessions = async (req, res) => {
           sessaoJSON.conjugeResponsavelJantarNome =
             sessaoJSON.responsavelJantar.familiares[0].nomeCompleto;
         }
+
+        // Estruturar Edital e Balaustre como objetos
+        sessaoJSON.edital = sessaoJSON.caminhoEditalPdf
+          ? { caminhoPdfLocal: sessaoJSON.caminhoEditalPdf }
+          : null;
+        sessaoJSON.balaustre = sessaoJSON.caminhoBalaustrePdf
+          ? { caminhoPdfLocal: sessaoJSON.caminhoBalaustrePdf }
+          : null;
+        sessaoJSON.convite = sessaoJSON.caminhoConvitePdf
+          ? { caminhoPdfLocal: sessaoJSON.caminhoConvitePdf }
+          : null;
+
+        // Remover as propriedades diretas para evitar redundância
+        delete sessaoJSON.caminhoEditalPdf;
+        delete sessaoJSON.caminhoBalaustrePdf;
+        delete sessaoJSON.caminhoConvitePdf;
+
         return sessaoJSON;
       })
     );
@@ -135,6 +153,22 @@ export const getSessionById = async (req, res) => {
       sessionJSON.conjugeResponsavelJantarNome =
         sessionJSON.responsavelJantar.familiares[0].nomeCompleto;
     }
+
+    // Estruturar Edital e Balaustre como objetos
+    sessionJSON.edital = sessionJSON.caminhoEditalPdf
+      ? { caminhoPdfLocal: sessionJSON.caminhoEditalPdf }
+      : null;
+    sessionJSON.balaustre = sessionJSON.caminhoBalaustrePdf
+      ? { caminhoPdfLocal: sessionJSON.caminhoBalaustrePdf }
+      : null;
+    sessionJSON.convite = sessionJSON.caminhoConvitePdf
+      ? { caminhoPdfLocal: sessionJSON.caminhoConvitePdf }
+      : null;
+
+    // Remover as propriedades diretas para evitar redundância
+    delete sessionJSON.caminhoEditalPdf;
+    delete sessionJSON.caminhoBalaustrePdf;
+    delete sessionJSON.caminhoConvitePdf;
 
     res.status(200).json(sessionJSON);
   } catch (error) {
@@ -302,15 +336,17 @@ export const createSession = async (req, res) => {
       ),
     };
 
-    const [balaustreInfo, editalInfo] = await Promise.all([
+    const [balaustreInfo, editalInfo, conviteInfo] = await Promise.all([
       createBalaustreFromTemplate(dadosParaTemplate, novaSessao.id),
       createEditalFromTemplate(dadosParaTemplate),
+      createConviteFromTemplate(dadosParaTemplate),
     ]);
 
     await db.MasonicSession.update(
       {
         caminhoEditalPdf: editalInfo.pdfPath,
         caminhoBalaustrePdf: balaustreInfo.pdfPath,
+        caminhoConvitePdf: conviteInfo.pdfPath,
       },
       { where: { id: novaSessao.id } }
     );
@@ -459,6 +495,11 @@ export const deleteSession = async (req, res) => {
     if (session.caminhoBalaustrePdf) {
       await deleteLocalFile(session.caminhoBalaustrePdf).catch((err) =>
         console.error("Falha ao deletar balaústre local:", err)
+      );
+    }
+    if (session.caminhoConvitePdf) {
+      await deleteLocalFile(session.caminhoConvitePdf).catch((err) =>
+        console.error("Falha ao deletar convite local:", err)
       );
     }
 
