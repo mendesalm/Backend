@@ -20,8 +20,7 @@ const SUBTIPO_SESSAO_ENUM = [
 export const validateSessionCreation = [
   body("dataSessao")
     .isISO8601()
-    .withMessage("A data da sessão deve estar no formato AAAA-MM-DD.")
-    .toDate(),
+    .withMessage("A data da sessão deve estar no formato AAAA-MM-DD."),
   body("tipoSessao")
     .notEmpty()
     .withMessage("O tipo da sessão é obrigatório.")

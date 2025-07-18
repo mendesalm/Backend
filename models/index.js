@@ -80,6 +80,7 @@ const modelDefinitions = [
   },
   { key: "DocumentoGerado", file: "documentoGerado.model.js" },
   { key: "CorpoMensagem", file: "corpomensagem.js" },
+  { key: "Counter", file: "counter.model.js" },
 ];
 
 const loadModel = async (modelFileName) => {

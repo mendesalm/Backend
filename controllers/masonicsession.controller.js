@@ -1,18 +1,20 @@
 // backend/controllers/masonicsession.controller.js
 import db from "../models/index.js";
+import { formatInTimeZone } from "date-fns-tz";
+import { ptBR } from "date-fns/locale";
 
 // --- Serviços ---
 import {
   createBalaustreFromTemplate,
   createEditalFromTemplate,
-  createCartaoAniversarioFromTemplate,
   deleteLocalFile,
 } from "../services/documents.service.js";
 import { avancarEscalaSequencialEObterResponsavel } from "../services/escala.service.js";
+import { getNextNumber } from "../services/numbering.service.js";
 import { enviarEditalDeConvocacaoPorEmail } from "../services/notification.service.js";
 
 /**
- * Lista todas as sessões, incluindo contagens e dados do responsável pelo jantar.
+ * Lista todas as sessões.
  */
 export const getAllSessions = async (req, res) => {
   try {
@@ -26,13 +28,6 @@ export const getAllSessions = async (req, res) => {
       where: whereClause,
       include: [
         {
-          model: db.Balaustre,
-          as: "Balaustre",
-          attributes: ["id", "caminhoPdfLocal", "numero"],
-          required: false,
-        },
-        // CORREÇÃO: Inclui o membro responsável e o seu familiar (cônjuge)
-        {
           model: db.LodgeMember,
           as: "responsavelJantar",
           attributes: ["id", "NomeCompleto"],
@@ -43,7 +38,7 @@ export const getAllSessions = async (req, res) => {
               as: "familiares",
               attributes: ["nomeCompleto", "parentesco"],
               where: { parentesco: "Cônjuge" },
-              required: false, // Não exclui a sessão se o membro não tiver cônjuge cadastrado(a)
+              required: false,
             },
           ],
         },
@@ -62,11 +57,9 @@ export const getAllSessions = async (req, res) => {
       order: [[sortBy, order.toUpperCase()]],
     });
 
-    // Mapeia os resultados para adicionar contagens e formatar o nome do cônjuge
     const sessoesFormatadas = await Promise.all(
       sessions.map(async (sessao) => {
         const sessaoJSON = sessao.toJSON();
-
         const visitantes = await db.VisitanteSessao.count({
           where: { masonicSessionId: sessao.id },
         });
@@ -74,12 +67,10 @@ export const getAllSessions = async (req, res) => {
           (a) => a.statusPresenca === "Presente"
         ).length;
         sessaoJSON.visitantesCount = visitantes;
-
         if (sessaoJSON.responsavelJantar?.familiares?.length > 0) {
           sessaoJSON.conjugeResponsavelJantarNome =
             sessaoJSON.responsavelJantar.familiares[0].nomeCompleto;
         }
-
         return sessaoJSON;
       })
     );
@@ -87,10 +78,12 @@ export const getAllSessions = async (req, res) => {
     res.status(200).json(sessoesFormatadas);
   } catch (error) {
     console.error("Erro em getAllSessions:", error);
-    res.status(500).json({
-      message: "Erro ao listar sessões maçónicas.",
-      errorDetails: error.message,
-    });
+    res
+      .status(500)
+      .json({
+        message: "Erro ao listar sessões maçónicas.",
+        errorDetails: error.message,
+      });
   }
 };
 
@@ -101,7 +94,6 @@ export const getSessionById = async (req, res) => {
   try {
     const session = await db.MasonicSession.findByPk(req.params.id, {
       include: [
-        { model: db.Balaustre, as: "Balaustre", required: false },
         {
           model: db.LodgeMember,
           as: "responsavelJantar",
@@ -139,7 +131,6 @@ export const getSessionById = async (req, res) => {
     }
 
     const sessionJSON = session.toJSON();
-    console.log("Session data before response:", JSON.stringify(sessionJSON, null, 2));
     if (sessionJSON.responsavelJantar?.familiares?.length > 0) {
       sessionJSON.conjugeResponsavelJantarNome =
         sessionJSON.responsavelJantar.familiares[0].nomeCompleto;
@@ -148,10 +139,12 @@ export const getSessionById = async (req, res) => {
     res.status(200).json(sessionJSON);
   } catch (error) {
     console.error("Erro em getSessionById:", error);
-    res.status(500).json({
-      message: "Erro ao buscar detalhes da sessão.",
-      errorDetails: error.message,
-    });
+    res
+      .status(500)
+      .json({
+        message: "Erro ao buscar detalhes da sessão.",
+        errorDetails: error.message,
+      });
   }
 };
 
@@ -159,34 +152,42 @@ export const getSessionById = async (req, res) => {
  * Cria uma nova sessão, popula a lista de presença, avança a escala e gera documentos.
  */
 export const createSession = async (req, res) => {
-  const { dataSessao: rawDataSessao, tipoSessao, subtipoSessao, ...restOfBody } = req.body;
-  const dataSessao = new Date(rawDataSessao).toISOString().split('T')[0];
+  // O validador já converteu a string 'YYYY-MM-DD' para um objeto Date.
+  const { dataSessao, tipoSessao, subtipoSessao, ...restOfBody } = req.body;
+  const timeZone = "America/Sao_Paulo";
 
   let novaSessao;
   const transaction = await db.sequelize.transaction();
   try {
-    const resultadoEscala = await avancarEscalaSequencialEObterResponsavel(transaction);
-    
-    const responsavelJantar = resultadoEscala ? resultadoEscala.membroResponsavel : null;
-    const responsabilidadeJantarId = resultadoEscala ? resultadoEscala.responsabilidadeJantarId : null;
+    const resultadoEscala = await avancarEscalaSequencialEObterResponsavel(
+      transaction
+    );
+    const responsavelJantar = resultadoEscala
+      ? resultadoEscala.membroResponsavel
+      : null;
+    const responsabilidadeJantarId = resultadoEscala
+      ? resultadoEscala.responsabilidadeJantarId
+      : null;
+    const tipoResponsabilidade = responsavelJantar
+      ? "Sequencial"
+      : "Institucional";
 
-    const tipoResponsabilidade = responsavelJantar ? "Sequencial" : "Institucional";
+    const numeroSessao = await getNextNumber("session", transaction);
 
-    // 1. Cria a sessão
     novaSessao = await db.MasonicSession.create(
       {
+        numero: numeroSessao,
         dataSessao,
         tipoSessao,
         subtipoSessao,
-        responsavelJantarLodgeMemberId: responsavelJantar ? responsavelJantar.id : null,
-        responsabilidadeJantarId: responsabilidadeJantarId,
+        responsavelJantarLodgeMemberId: responsavelJantar?.id || null,
+        responsabilidadeJantarId,
         tipoResponsabilidadeJantar: tipoResponsabilidade,
         ...restOfBody,
       },
       { transaction }
     );
 
-    // 2. Vincula o registro da escala à sessão
     if (responsabilidadeJantarId) {
       await db.ResponsabilidadeJantar.update(
         { sessaoDesignadaId: novaSessao.id },
@@ -194,37 +195,32 @@ export const createSession = async (req, res) => {
       );
     }
 
-    // 3. Popula a lista de presença com todos os membros ativos
     const membrosAtivos = await db.LodgeMember.findAll({
       where: { Situacao: "Ativo" },
       attributes: ["id"],
       transaction,
     });
-
     if (membrosAtivos.length > 0) {
-      console.log(`Found ${membrosAtivos.length} active members.`);
       const attendeesData = membrosAtivos.map((membro) => ({
         sessionId: novaSessao.id,
         lodgeMemberId: membro.id,
-        statusPresenca: "Ausente", // Status padrão
+        statusPresenca: "Ausente",
       }));
       await db.SessionAttendee.bulkCreate(attendeesData, { transaction });
-      console.log(`Successfully created ${attendeesData.length} session attendees.`);
-    } else {
-      console.log("No active members found to create session attendees for.");
     }
-
     await transaction.commit();
   } catch (error) {
     await transaction.rollback();
     console.error("Erro na transação de criação da sessão:", error);
-    return res.status(500).json({
-      message: "Falha ao criar a sessão, popular presenças ou processar a escala.",
-      errorDetails: error.message,
-    });
+    return res
+      .status(500)
+      .json({
+        message:
+          "Falha ao criar a sessão, popular presenças ou processar a escala.",
+        errorDetails: error.message,
+      });
   }
 
-  // Operações secundárias (Pós-Transação)
   try {
     const responsavelComFamilia = await db.LodgeMember.findByPk(
       novaSessao.responsavelJantarLodgeMemberId,
@@ -233,7 +229,7 @@ export const createSession = async (req, res) => {
           {
             model: db.FamilyMember,
             as: "familiares",
-            where: { parentesco: "Esposa" },
+            where: { parentesco: "Cônjuge" },
             required: false,
           },
         ],
@@ -246,39 +242,64 @@ export const createSession = async (req, res) => {
       ? `${responsavelComFamilia.NomeCompleto} e Cunhada ${nomeConjuge}`
       : "Oferecido pela Loja";
 
-    const sessionDate = new Date(novaSessao.dataSessao);
+    const findOficial = async (nomeCargo) => {
+      const cargo = await db.CargoExercido.findOne({
+        where: { nomeCargo, dataTermino: null },
+        include: [
+          { model: db.LodgeMember, as: "membro", attributes: ["NomeCompleto"] },
+        ],
+        order: [["dataInicio", "DESC"]],
+      });
+      return cargo?.membro?.NomeCompleto || "(A preencher)";
+    };
 
-    let classeSessaoFormatada;
-    const tipoSessaoLowerCase = tipoSessao.toLowerCase();
+    const [veneravel, chanceler] = await Promise.all([
+      findOficial("Venerável Mestre"),
+      findOficial("Chanceler"),
+    ]);
 
-    if (
-      tipoSessaoLowerCase === "pública" ||
-      tipoSessaoLowerCase === "comemorativa"
-    ) {
+    let classeSessaoFormatada = `Sessão ${tipoSessao} no Grau de ${subtipoSessao} Maçom`;
+    if (["pública", "comemorativa"].includes(tipoSessao.toLowerCase())) {
       classeSessaoFormatada = `Sessão ${tipoSessao}`;
-    } else {
-      classeSessaoFormatada = `Sessão ${tipoSessao} no Grau de ${subtipoSessao} Maçom`;
     }
 
+    const dataSessaoObj = new Date(dataSessao);
+
     const dadosParaTemplate = {
-      NumeroBalaustre: novaSessao.id,
       ClasseSessao: classeSessaoFormatada,
-      DiaSessao: sessionDate.toLocaleDateString("pt-BR", {
-        dateStyle: "long",
-        timeZone: "UTC",
-      }),
       ResponsavelJantar: nomeFinalResponsavel,
-      data_sessao_extenso: sessionDate.toLocaleDateString("pt-BR", {
-        dateStyle: "long",
-        timeZone: "UTC",
-      }),
-      dia_semana: sessionDate.toLocaleDateString("pt-BR", {
-        weekday: "long",
-        timeZone: "UTC",
-      }),
       hora_sessao: "19h30",
+      Veneravel: veneravel,
+      Chanceler: chanceler,
+      NumeroBalaustre: novaSessao.numero,
       tipo_sessao: tipoSessao,
       grau_sessao: subtipoSessao,
+      DiaSessao: formatInTimeZone(
+        dataSessaoObj,
+        timeZone,
+        "dd 'de' MMMM 'de' yyyy",
+        { locale: ptBR }
+      ),
+      DataAssinatura: formatInTimeZone(
+        new Date(),
+        timeZone,
+        "dd 'de' MMMM 'de' yyyy",
+        { locale: ptBR }
+      ),
+      data_sessao_extenso: formatInTimeZone(
+        dataSessaoObj,
+        timeZone,
+        "dd 'de' MMMM 'de' yyyy",
+        { locale: ptBR }
+      ),
+      dia_semana: formatInTimeZone(dataSessaoObj, timeZone, "EEEE", {
+        locale: ptBR,
+      }),
+      formattedDateForFilename: formatInTimeZone(
+        dataSessaoObj,
+        timeZone,
+        "ddMMyy"
+      ),
     };
 
     const [balaustreInfo, editalInfo] = await Promise.all([
@@ -286,19 +307,13 @@ export const createSession = async (req, res) => {
       createEditalFromTemplate(dadosParaTemplate),
     ]);
 
-    const sessaoParaAtualizar = await db.MasonicSession.findByPk(novaSessao.id);
-    await sessaoParaAtualizar.update({
-      caminhoEditalPdf: editalInfo.pdfPath,
-    });
-
-    await db.Balaustre.create({
-      numero: novaSessao.id.toString(),
-      ano: sessionDate.getFullYear(),
-      path: balaustreInfo.pdfPath,
-      MasonicSessionId: novaSessao.id,
-      caminhoPdfLocal: balaustreInfo.pdfPath,
-      dadosFormulario: dadosParaTemplate,
-    });
+    await db.MasonicSession.update(
+      {
+        caminhoEditalPdf: editalInfo.pdfPath,
+        caminhoBalaustrePdf: balaustreInfo.pdfPath,
+      },
+      { where: { id: novaSessao.id } }
+    );
 
     enviarEditalDeConvocacaoPorEmail(
       novaSessao,
@@ -307,17 +322,10 @@ export const createSession = async (req, res) => {
 
     const sessaoCompleta = await db.MasonicSession.findByPk(novaSessao.id, {
       include: [
-        { model: db.Balaustre, as: "Balaustre" },
         {
           model: db.SessionAttendee,
           as: "attendees",
-          include: [
-            {
-              model: db.LodgeMember,
-              as: "membro",
-              attributes: ["id", "NomeCompleto", "CIM", "Graduacao"],
-            },
-          ],
+          include: [{ model: db.LodgeMember, as: "membro" }],
         },
       ],
     });
@@ -327,15 +335,16 @@ export const createSession = async (req, res) => {
       "Erro nas operações secundárias (geração de docs/email):",
       error
     );
-    res.status(201).json({
-      message:
-        "Sessão criada, mas com falha ao gerar documentos ou enviar e-mail.",
-      session: novaSessao,
-      errorDetails: error.message,
-    });
+    res
+      .status(201)
+      .json({
+        message:
+          "Sessão criada, mas com falha ao gerar documentos ou enviar e-mail.",
+        session: novaSessao,
+        errorDetails: error.message,
+      });
   }
 };
-
 /**
  * Atualiza uma sessão maçônica.
  */
@@ -351,7 +360,6 @@ export const updateSession = async (req, res) => {
     // Re-fetch the session with all required associations
     const updatedSession = await db.MasonicSession.findByPk(id, {
       include: [
-        { model: db.Balaustre, as: "Balaustre", required: false },
         {
           model: db.LodgeMember,
           as: "responsavelJantar",
@@ -430,9 +438,9 @@ export const deleteSession = async (req, res) => {
 
         // Reverte o membro para o início da fila e desvincula da sessão deletada.
         await responsavelEntry.update(
-          { 
+          {
             ordem: novaOrdem,
-            sessaoDesignadaId: null // Desvincula o ID da sessão
+            sessaoDesignadaId: null, // Desvincula o ID da sessão
           },
           { transaction }
         );
@@ -448,9 +456,8 @@ export const deleteSession = async (req, res) => {
         console.error("Falha ao deletar edital local:", err)
       );
     }
-    const balaustre = await session.getBalaustre({ transaction });
-    if (balaustre && balaustre.caminhoPdfLocal) {
-      await deleteLocalFile(balaustre.caminhoPdfLocal).catch((err) =>
+    if (session.caminhoBalaustrePdf) {
+      await deleteLocalFile(session.caminhoBalaustrePdf).catch((err) =>
         console.error("Falha ao deletar balaústre local:", err)
       );
     }
@@ -497,7 +504,6 @@ export const updateSessionAttendance = async (req, res) => {
     // Re-fetch the session with all required associations to return updated data
     const updatedSession = await db.MasonicSession.findByPk(id, {
       include: [
-        { model: db.Balaustre, as: "Balaustre", required: false },
         {
           model: db.LodgeMember,
           as: "responsavelJantar",
@@ -550,8 +556,13 @@ export const manageSessionVisitor = async (req, res) => {
   const { nome, loja, oriente } = req.body;
   try {
     const [visitor] = await db.VisitanteSessao.findOrCreate({
-      where: { sessionId, nome },
-      defaults: { sessionId, nome, loja, oriente },
+      where: { masonicSessionId: sessionId, nomeCompleto: nome },
+      defaults: {
+        masonicSessionId: sessionId,
+        nomeCompleto: nome,
+        loja,
+        oriente,
+      },
     });
     res.status(201).json(visitor);
   } catch (error) {
@@ -592,7 +603,6 @@ export const gerarBalaustreSessao = async (req, res) => {
   try {
     const sessao = await db.MasonicSession.findByPk(id, {
       include: [
-        { model: db.Balaustre, as: "Balaustre" },
         {
           model: db.LodgeMember,
           as: "responsavelJantar",
@@ -613,9 +623,8 @@ export const gerarBalaustreSessao = async (req, res) => {
     }
 
     // Deleta o balaústre antigo, se existir
-    if (sessao.Balaustre && sessao.Balaustre.googleDocId) {
-      await deleteGoogleFile(sessao.Balaustre.googleDocId);
-      await sessao.Balaustre.destroy();
+    if (sessao.caminhoBalaustrePdf) {
+      await deleteLocalFile(sessao.caminhoBalaustrePdf);
     }
 
     const { tipoSessao, subtipoSessao, dataSessao } = sessao;
@@ -627,10 +636,12 @@ export const gerarBalaustreSessao = async (req, res) => {
     const findOficial = async (nomeCargo) => {
       const cargo = await db.CargoExercido.findOne({
         where: { nomeCargo, dataTermino: null },
-        include: [{ model: db.LodgeMember, attributes: ["NomeCompleto"] }],
+        include: [
+          { model: db.LodgeMember, as: "membro", attributes: ["NomeCompleto"] },
+        ],
         order: [["dataInicio", "DESC"]], // Garante pegar o mais recente se houver dados inconsistentes
       });
-      return cargo?.LodgeMember?.NomeCompleto || "(A preencher)";
+      return cargo?.membro?.NomeCompleto || "(A preencher)";
     };
 
     const [
@@ -678,7 +689,7 @@ export const gerarBalaustreSessao = async (req, res) => {
 
     // 5. Construção do Objeto de Dados para o Template
     const dadosParaTemplate = {
-      NumeroBalaustre: sessao.id,
+      NumeroBalaustre: sessao.numero,
       ClasseSessao: classeSessaoFormatada,
       DiaSessao: sessionDate.toLocaleDateString("pt-BR", {
         dateStyle: "long",
@@ -710,37 +721,23 @@ export const gerarBalaustreSessao = async (req, res) => {
       TroncoBeneficiencia: "0",
       Palavra: "(A preencher)",
       Emendas: "(A preencher)",
-      data_sessao_extenso: sessionDate.toLocaleDateString("pt-BR", {
-        dateStyle: "long",
-        timeZone: "UTC",
-      }),
-      dia_semana: sessionDate.toLocaleDateString("pt-BR", {
-        weekday: "long",
-        timeZone: "UTC",
-      }),
-      hora_sessao: "19h30",
-      tipo_sessao: tipoSessao,
-      grau_sessao: subtipoSessao,
     };
 
     // --- Geração e Salvamento do Novo Balaústre ---
-    const { googleDocId, pdfPath } = await createBalaustreFromTemplate(
-      dadosParaTemplate
+    const { pdfPath } = await createBalaustreFromTemplate(
+      dadosParaTemplate,
+      sessao.id
     );
 
-    const novoBalaustre = await db.Balaustre.create({
-      numero: sessao.id.toString(),
-      ano: sessionDate.getFullYear(),
-      path: pdfPath,
-      MasonicSessionId: id,
-      googleDocId: googleDocId,
-      caminhoPdfLocal: pdfPath,
-      dadosFormulario: dadosParaTemplate, // Salva os dados usados
-    });
+    // Update the session with the new balaustre path
+    await db.MasonicSession.update(
+      { caminhoBalaustrePdf: pdfPath },
+      { where: { id: sessao.id } }
+    );
 
     res.status(201).json({
       message: "Balaústre gerado/atualizado com sucesso!",
-      balaustre: novoBalaustre,
+      caminhoBalaustrePdf: pdfPath,
     });
   } catch (error) {
     console.error("Erro ao gerar Balaústre:", error);

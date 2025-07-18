@@ -1,59 +1,196 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Edital de Convocação</title>
     <style>
-        body {
-            font-family: "Open Sans", sans-serif;
-            margin: 0;
-            padding: 20px;
-            color: #333;
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .header img {
-            max-width: 150px;
-            margin-bottom: 10px;
-        }
-        .header h1 {
-            font-size: 24px;
-            color: #0056b3;
-        }
-        .content {
-            line-height: 1.8;
-            margin-bottom: 20px;
-        }
-        .footer {
-            text-align: center;
-            font-size: 12px;
-            color: #777;
-        }
+      body {
+        font-family: "Poppins", sans-serif;
+        margin: 0;
+        padding: 0;
+        line-height: 1.6;
+        color: #333;
+      }
+
+      .document-content {
+        margin: 0;
+      }
+
+      .header-grid {
+        display: grid;
+        grid-template-columns: 1fr 8fr;
+        align-items: center;
+        height: 2cm;
+        overflow: hidden;
+        margin-top: 0.05cm;
+        margin-right: 0.1cm;
+      }
+
+      .header-logo {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100%;
+      }
+
+      .header-logo img {
+        max-height: 1.7cm;
+        width: auto;
+        border-radius: 50%;
+        background-color: #fff;
+      }
+
+      .header-text {
+        position: relative;
+        background-color: #380404;
+        color: white;
+        clip-path: polygon(0 0, 100% 0, 100% 100%, 10% 100%);
+        text-align: right;
+        padding: 2px 120px 2px 10px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        height: 100%;
+      }
+
+      .header-text .affiliation {
+        margin: 0;
+        font-family: sans-serif;
+        font-size: 0.5em;
+        font-weight: 500;
+      }
+
+      .header-text .lodge-name {
+        margin: 0;
+        font-family: serif;
+        font-size: 1.2em;
+        font-weight: bold;
+        line-height: 1.1;
+        text-transform: uppercase;
+      }
+
+      .logo-in-text {
+        position: absolute;
+        right: 5px;
+        top: 50%;
+        transform: translateY(-50%);
+        max-height: 1.7cm;
+        width: auto;
+      }
+
+      .mso-title {
+        text-align: center;
+        line-height: 1.2;
+      }
+
+      .mso-normal {
+        text-align: justify;
+        line-height: 1.8; /* Aumentado para melhor espaçamento */
+        padding: 2mm 5mm; /* Adicionado padding horizontal */
+        margin-top: 15mm;
+        margin-bottom: 15mm;
+      }
+
+      .mso-sign {
+        text-align: center;
+      }
+      .mso-sign-li span {
+        font-family: "Open Sans", sans-serif;
+      }
+
+      .signatures-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 40px;
+      }
+
+      .signatures-table td {
+        padding: 5px;
+        border: none;
+        width: 50%;
+        text-align: center;
+      }
     </style>
-</head>
-<body>
-    <div class="header">
-        <img src="{{headerImage}}" alt="Logo da Loja">
-        <h1>EDITAL DE CONVOCAÇÃO</h1>
-        <p>Loja Maçônica João Pedro Junqueira nº 2181</p>
-        <p>Federada ao Grande Oriente do Brasil</p>
-        <p>Jurisdicionada ao Grande Oriente do Brasil - Goiás</p>
-    </div>
+  </head>
+  <body>
+    <div class="document-content">
+      <header class="header-grid">
+        <div class="header-logo logo-col-left">
+          <img src="{{headerImage}}" alt="Logo Esquerdo" />
+        </div>
+        <div class="header-text">
+          <img src="{{footerImage}}" alt="Logo Direito" class="logo-in-text" />
+          <p class="lodge-name">Loja Maçônica João Pedro Junqueira nº 2181</p>
+          <p class="affiliation">Federada ao Grande Oriente do Brasil</p>
+          <p class="affiliation">
+            Jurisdicionada ao Grande Oriente do Brasil - Goiás
+          </p>
+        </div>
+      </header>
 
-    <div class="content">
-        <p>Prezados Irmãos,</p>
-        <p>Temos a honra de convocar a todos para a <strong>Sessão {{tipo_sessao}}</strong>, que será realizada no dia <strong>{{data_sessao_extenso}}</strong>, uma {{dia_semana}}, às <strong>{{hora_sessao}}</strong>, no Templo da Loja.</p>
-        <p>Contamos com a valiosa presença de todos para o engrandecimento de nossos trabalhos.</p>
-        <p>Fraternalmente,</p>
-        <p>A Administração da Loja.</p>
-    </div>
+      <p class="mso-title" style="margin-top: 20mm; margin-bottom: 10mm">
+        <b
+          ><span style="font-size: 18pt; line-height: 1.2"
+            >EDITAL DE CONVOCAÇÃO</span
+          ></b
+        >
+      </p>
 
-    <div class="footer">
-        <p>Este edital foi gerado automaticamente pelo sistema.</p>
-        <img src="{{footerImage}}" alt="Logo Rodapé">
+      <p class="mso-normal">
+        A Augusta, Respeitável e Benfeitora Loja Simbólica João Pedro Junqueira
+        nº 2181, por meio de seu Venerável Mestre, convoca todos os Irmãos do
+        quadro para a <strong>{{ClasseSessao}}</strong>, a ser realizada no dia
+        <strong>{{DiaSessao}}</strong>, às <strong>{{hora_sessao}}</strong>, em
+        seu Templo situado à Av-9, Área A-2, Conjunto Mirage, Oriente de
+        Anápolis, Goiás.
+      </p>
+
+      <p class="mso-normal" style="text-align: center">
+        Após a sessão, será servido um ágape fraternal oferecido pelo Irmão
+        <strong>{{ResponsavelJantar}}</strong>.
+      </p>
+
+      <p
+        class="mso-normal"
+        align="right"
+        style="margin-top: 15mm; margin-bottom: 20mm; text-align: right"
+      >
+        <span>Oriente de Anápolis, {{DataAssinatura}} – E∴ V∴</span>
+      </p>
+
+      <table class="signatures-table">
+        <tr>
+          <td>
+            <p class="mso-sign-li" style="line-height: 0.2">
+              <span style="font-size: 10pt">___________________________</span>
+            </p>
+            <p
+              class="mso-sign"
+              style="line-height: normal; text-transform: uppercase"
+            >
+              <b style="font-size: 10pt">{{Veneravel}}</b>
+            </p>
+            <p class="mso-sign" style="line-height: normal">
+              <span style="font-size: 10pt">Venerável Mestre</span>
+            </p>
+          </td>
+          <td>
+            <p class="mso-sign-li" style="line-height: 0.2">
+              <span style="font-size: 10pt">___________________________</span>
+            </p>
+            <p
+              class="mso-sign"
+              style="line-height: normal; text-transform: uppercase"
+            >
+              <b style="font-size: 10pt">{{Chanceler}}</b>
+            </p>
+            <p class="mso-sign" style="line-height: normal">
+              <span style="font-size: 10pt">Chanceler</span>
+            </p>
+          </td>
+        </tr>
+      </table>
     </div>
-</body>
+  </body>
 </html>

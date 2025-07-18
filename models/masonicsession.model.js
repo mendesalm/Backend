@@ -3,6 +3,7 @@ export default (sequelize, DataTypes) => {
     "MasonicSession",
     {
       id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
+      numero: { type: DataTypes.INTEGER, allowNull: true },
       dataSessao: {
         type: DataTypes.DATEONLY,
         allowNull: false,
@@ -56,6 +57,8 @@ export default (sequelize, DataTypes) => {
       },
       troncoDeBeneficencia: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
       conjugeResponsavelJantarNome: { type: DataTypes.STRING, allowNull: true },
+      caminhoEditalPdf: { type: DataTypes.STRING, allowNull: true },
+      caminhoBalaustrePdf: { type: DataTypes.STRING, allowNull: true },
       // responsavelJantarLodgeMemberId é FK
       classeSessao: {
         type: DataTypes.VIRTUAL,
@@ -142,15 +145,7 @@ export default (sequelize, DataTypes) => {
       );
     }
 
-    if (models.Balaustre) {
-      MasonicSession.hasOne(models.Balaustre, {
-        as: "Balaustre", // Alias para acessar o balaústre da sessão
-        foreignKey: { name: "MasonicSessionId", allowNull: false },
-        onDelete: "CASCADE",
-      });
-    } else {
-      console.error("MODELO AUSENTE: Balaustre em MasonicSession.");
-    }
+    
   };
 
   return MasonicSession;
