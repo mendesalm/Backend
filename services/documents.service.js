@@ -83,7 +83,7 @@ const prepareHtmlForPdf = (templateName, data) => {
   data.backgroundImage = imageToBase64("assets/images/cartao_fundo.svg");
 
   Object.entries(data).forEach(([key, value]) => {
-    const regex = new RegExp(`{{${key}}}`, "g");
+    const regex = new RegExp(`{{{${key}}}}`, "g");
     htmlContent = htmlContent.replace(regex, String(value ?? ""));
   });
 
@@ -304,7 +304,66 @@ export async function createBalaustreFromTemplate(data, masonicSessionId) {
   }
 
   const processedData = prepareDataForBalaustre(data);
+  const pdfResult = await regenerateBalaustrePdf(null, processedData);
+
+  // Crie a entrada do balaústre no banco de dados
+  await db.Balaustre.create({
+    numero: processedData.NumeroBalaustre,
+    ano: new Date().getFullYear(), // Ou extraia de 'data' se disponível
+    path: pdfResult.pdfPath,
+    googleDocId: null,
+    caminhoPdfLocal: pdfResult.pdfPath,
+    dadosFormulario: data,
+    MasonicSessionId: masonicSessionId,
+    status: 'Rascunho',
+    assinaturas: {},
+  });
+
+  return pdfResult;
+}
+
+export async function regenerateBalaustrePdf(balaustreId, data) {
+  const balaustre = balaustreId ? await db.Balaustre.findByPk(balaustreId) : null;
+  const templateData = data || balaustre.dadosFormulario;
+
+  const logoBase64 = imageToBase64("assets/images/logoJPJ_.png");
+
+  const buildSignatureBlock = (signatureInfo, role) => {
+    if (signatureInfo) {
+      return `
+        <div class="signature-seal">
+          <div class="seal-content">
+            <div class="seal-logo"><img src="${logoBase64}" alt="Logo"></div>
+            <div class="seal-text">
+              <div class="signer-name">${signatureInfo.nome}</div>
+              <div class="signer-role">${role}</div>
+              <div class="signer-timestamp">${signatureInfo.timestamp}</div>
+            </div>
+          </div>
+        </div>`;
+    } else {
+      return `
+        <p class="mso-sign-li" align="center" style="line-height: 0.2">
+          <span style="font-size: 10pt">___________________________</span>
+        </p>
+        <p class="mso-sign" align="center" style="line-height: normal">
+          <span style="font-size: 10pt">${role}</span>
+        </p>`;
+    }
+  };
+
+  const assinaturas = balaustre ? balaustre.assinaturas : {};
+  templateData.secretarioSignatureBlock = buildSignatureBlock(assinaturas.secretario, "Secretário");
+  templateData.oradorSignatureBlock = buildSignatureBlock(assinaturas.orador, "Orador");
+  templateData.veneravelmestreSignatureBlock = buildSignatureBlock(assinaturas.veneravelmestre, "Venerável Mestre");
+
+  const processedData = prepareDataForBalaustre(templateData);
   const pdfResult = await generateBalaustrePdf(processedData);
+
+  if (balaustre) {
+    await balaustre.update({ caminhoPdfLocal: pdfResult.pdfPath });
+  }
+
   return pdfResult;
 }
 
@@ -319,7 +378,49 @@ export async function createEditalFromTemplate(editalData) {
     console.error("Erro ao obter o próximo número de edital:", error);
     throw error;
   }
-  const pdfResult = await generateEditalPdf(editalData);
+  const pdfResult = await regenerateEditalPdf(editalData.masonicSessionId, editalData);
+
+  return pdfResult;
+}
+
+export async function regenerateEditalPdf(sessionId, data) {
+  const session = await db.MasonicSession.findByPk(sessionId);
+  const templateData = data || session.dataValues;
+
+  const logoBase64 = imageToBase64("assets/images/logoJPJ_.png");
+
+  const buildSignatureBlock = (signatureInfo, role) => {
+    if (signatureInfo) {
+      return `
+        <div class="signature-seal">
+          <div class="seal-content">
+            <div class="seal-logo"><img src="${logoBase64}" alt="Logo"></div>
+            <div class="seal-text">
+              <div class="signer-name">${signatureInfo.nome}</div>
+              <div class="signer-role">${role}</div>
+              <div class="signer-timestamp">${signatureInfo.timestamp}</div>
+            </div>
+          </div>
+        </div>`;
+    } else {
+      return `
+        <p class="mso-sign-li" align="center" style="line-height: 0.2">
+          <span style="font-size: 10pt">___________________________</span>
+        </p>
+        <p class="mso-sign" align="center" style="line-height: normal">
+          <span style="font-size: 10pt">${role}</span>
+        </p>`;
+    }
+  };
+
+  const assinaturas = session.assinaturasEdital || {};
+  templateData.chancelerSignatureBlock = buildSignatureBlock(assinaturas.chanceler, "Chanceler");
+  templateData.veneravelmestreSignatureBlock = buildSignatureBlock(assinaturas.veneravelmestre, "Venerável Mestre");
+
+  const pdfResult = await generateEditalPdf(templateData);
+
+  await session.update({ caminhoEditalPdf: pdfResult.pdfPath });
+
   return pdfResult;
 }
 

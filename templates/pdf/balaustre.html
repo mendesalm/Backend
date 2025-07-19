@@ -127,6 +127,17 @@
         width: 60%;
       }
       /* Specific styles from the Word HTML that might be useful, adapted */
+.signature-seal {
+    border: 1px solid #e0e0e0; background-color: #f7f7f7; border-radius: 8px;
+    padding: 8px; display: inline-block; text-align: left;
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
+}
+.seal-content { display: flex; align-items: center; }
+.seal-logo img { width: 45px; height: 45px; margin-right: 12px; }
+.seal-text { font-family: 'Open Sans', sans-serif; font-size: 9pt; line-height: 1.4; }
+.signer-name { font-weight: bold; color: #380404; text-transform: uppercase; }
+.signer-role { font-style: italic; color: #333; }
+.signer-timestamp { font-size: 8pt; color: #777; }
     </style>
   </head>
   <body>
@@ -245,34 +256,19 @@
         <span>Oriente de Anápolis, {{DataAssinatura}} – E∴ V∴</span>
       </p>
 
-      <table class="officers-table" style="width: 100%; border: none">
-        <tr>
-          <td style="width: 33%; text-align: center; border: none">
-            <p class="mso-sign-li" align="center" style="line-height: 0.2">
-              <span style="font-size: 10pt">___________________________</span>
-            </p>
-            <p class="mso-sign" align="center" style="line-height: normal">
-              <span style="font-size: 10pt">Secretário</span>
-            </p>
-          </td>
-          <td style="width: 33%; text-align: center; border: none">
-            <p class="mso-sign-li" align="center" style="line-height: 0.2">
-              <span style="font-size: 10pt">___________________________</span>
-            </p>
-            <p class="mso-sign" align="center" style="line-height: normal">
-              <span style="font-size: 10pt">Orador</span>
-            </p>
-          </td>
-          <td style="width: 33%; text-align: center; border: none">
-            <p class="mso-sign-li" align="center" style="line-height: 0.2">
-              <span style="font-size: 10pt">___________________________</span>
-            </p>
-            <p class="mso-sign" align="center" style="line-height: normal">
-              <span style="font-size: 10pt"> Venerável Mestre</span>
-            </p>
-          </td>
-        </tr>
-      </table>
+<table class="officers-table" style="width: 100%; border: none">
+    <tr>
+        <td style="width: 33%; text-align: center; border: none">
+            {{{secretarioSignatureBlock}}}
+        </td>
+        <td style="width: 33%; text-align: center; border: none">
+            {{{oradorSignatureBlock}}}
+        </td>
+        <td style="width: 33%; text-align: center; border: none">
+            {{{veneravelmestreSignatureBlock}}}
+        </td>
+    </tr>
+</table>
     </div>
   </body>
 </html>

@@ -3,22 +3,32 @@ import {
   getBalaustreDetails,
   updateBalaustre,
   setNextBalaustreNumber,
+  assinarBalaustre, // Importar a nova função
 } from "../controllers/balaustre.controller.js";
 import authMiddleware from "../middlewares/auth.middleware.js";
-import { authorizeByFeature } from "../middlewares/authorizeByFeature.middleware.js"; // <-- Importar
+import { authorizeByFeature } from "../middlewares/authorizeByFeature.middleware.js";
 
 const router = express.Router();
-
-// Aplica a autenticação para todas as rotas
 router.use(authMiddleware);
 
-// Protege cada rota com sua permissão específica
+// --- NOVA ROTA DE ASSINATURA ---
+router.post(
+  "/:id/assinar",
+  authorizeByFeature("assinarDocumentos"),
+  assinarBalaustre
+);
+
 router.get(
   "/:id",
   authorizeByFeature("visualizarBalaustre"),
   getBalaustreDetails
 );
-router.put("/:id", authorizeByFeature("editarBalaustre"), updateBalaustre);
+
+router.put(
+  "/:id",
+  authorizeByFeature("editarBalaustre"),
+  updateBalaustre
+);
 
 router.post(
   "/settings/next-number",

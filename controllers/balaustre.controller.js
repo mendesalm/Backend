@@ -1,9 +1,8 @@
 import db from "../models/index.js";
-import {
-  createBalaustreFromTemplate,
-} from "../services/documents.service.js";
+import { createBalaustreFromTemplate, deleteLocalFile } from "../services/documents.service.js";
+import { formatInTimeZone } from "date-fns-tz";
+import { ptBR } from "date-fns/locale";
 
-// Função para buscar dados do balaústre, agora incluindo a contagem de presença
 export const getBalaustreDetails = async (req, res) => {
   try {
     const balaustre = await db.Balaustre.findByPk(req.params.id);
@@ -11,7 +10,6 @@ export const getBalaustreDetails = async (req, res) => {
       return res.status(404).json({ message: "Balaústre não encontrado." });
     }
 
-    // Realiza a contagem atual de presentes e visitantes
     const presentesCount = await db.SessionAttendee.count({
       where: { sessionId: balaustre.MasonicSessionId },
     });
@@ -19,7 +17,6 @@ export const getBalaustreDetails = async (req, res) => {
       where: { masonicSessionId: balaustre.MasonicSessionId },
     });
 
-    // Retorna os dados do formulário salvos e também as contagens mais recentes
     res.status(200).json({
       dadosFormulario: balaustre.dadosFormulario,
       presentesCount,
@@ -35,63 +32,103 @@ export const getBalaustreDetails = async (req, res) => {
   }
 };
 
-// Função para atualizar um balaústre existente (confia nos dados do formulário)
+import { regenerateBalaustrePdf } from "../services/documents.service.js";
+
+/**
+ * Assina um balaústre, adicionando o selo do usuário logado.
+ */
+export const assinarBalaustre = async (req, res) => {
+    const { id } = req.params;
+    const { cargo } = req.body; // Cargo que o usuário está assinando como (ex: "Secretário")
+    const userId = req.user.id;
+    const timeZone = 'America/Sao_Paulo';
+
+    if (!cargo) {
+        return res.status(400).json({ message: "O cargo do assinante é obrigatório." });
+    }
+
+    const t = await db.sequelize.transaction();
+    try {
+        const balaustre = await db.Balaustre.findByPk(id, { transaction: t });
+        if (!balaustre) {
+            await t.rollback();
+            return res.status(404).json({ message: "Balaústre não encontrado." });
+        }
+
+        const assinaturasAtuais = balaustre.assinaturas || {};
+        const cargoKey = cargo.toLowerCase().replace(/\s/g, '');
+
+        assinaturasAtuais[cargoKey] = {
+            nome: req.user.NomeCompleto,
+            timestamp: formatInTimeZone(new Date(), timeZone, "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR }),
+            lodgeMemberId: userId
+        };
+        
+        const cargosNecessarios = ['secretario', 'orador', 'veneravelmestre'];
+        const todasAssinadas = cargosNecessarios.every(c => assinaturasAtuais[c]);
+
+        balaustre.assinaturas = assinaturasAtuais;
+        if (todasAssinadas) {
+            balaustre.status = 'Assinado';
+        }
+
+        await balaustre.save({ transaction: t });
+
+        await regenerateBalaustrePdf(id);
+
+        await t.commit();
+        
+        res.status(200).json({ message: "Documento assinado com sucesso!", data: balaustre });
+
+    } catch (error) {
+        await t.rollback();
+        console.error("Erro ao assinar o balaústre:", error);
+        res.status(500).json({ message: "Falha ao assinar o balaústre.", errorDetails: error.message });
+    }
+};
+
+/**
+ * Atualiza um balaústre, com restrição de edição para documentos assinados.
+ */
 export const updateBalaustre = async (req, res) => {
-  const { id } = req.params;
-  const newData = req.body; // newData já inclui os números corrigidos pelo Secretário
+    const { id } = req.params;
+    const newData = req.body;
 
-  try {
-    const balaustre = await db.Balaustre.findByPk(id);
-    if (!balaustre) {
-      return res
-        .status(404)
-        .json({ message: "Balaústre não encontrado para atualizar." });
+    try {
+        const balaustre = await db.Balaustre.findByPk(id);
+        if (!balaustre) {
+            return res.status(404).json({ message: "Balaústre não encontrado para atualizar." });
+        }
+
+        if (balaustre.status === 'Assinado') {
+            const userIsAdmin = req.user.credencialAcesso === 'Webmaster';
+            const userCargos = await db.CargoExercido.findAll({ where: { lodgeMemberId: req.user.id, dataTermino: null } });
+            const userIsVeneravel = userCargos.some(c => c.nomeCargo === 'Venerável Mestre');
+
+            if (!userIsAdmin && !userIsVeneravel) {
+                return res.status(403).json({ message: "Acesso negado. Este documento já foi assinado e só pode ser editado pelo Venerável Mestre ou Webmaster." });
+            }
+        }
+
+        const oldPdfPath = balaustre.caminhoPdfLocal;
+        
+        await balaustre.update({
+            dadosFormulario: newData,
+            numero: newData.NumeroBalaustre,
+            ano: new Date(newData.DiaSessao).getFullYear()
+        });
+
+        const { pdfPath } = await regenerateBalaustrePdf(id);
+
+        if (oldPdfPath) {
+            await deleteLocalFile(oldPdfPath);
+        }
+
+        res.status(200).json({ message: "Balaústre atualizado com sucesso!", balaustre });
+    } catch (error) {
+        console.error("Erro ao atualizar o balaústre:", error);
+        res.status(500).json({ message: "Falha ao atualizar o balaústre.", errorDetails: error.message });
     }
-
-    // Cria um novo documento a partir do template com os novos dados (incluindo as contagens manuais)
-    const { pdfPath } = await createBalaustreFromTemplate(
-      newData,
-      balaustre.MasonicSessionId
-    );
-
-    // Atualiza o registro no banco de dados com os novos IDs e dados
-    balaustre.googleDocId = null; // Não há mais ID do Google Docs
-    balaustre.caminhoPdfLocal = pdfPath;
-    balaustre.dadosFormulario = newData; // Salva os dados corrigidos
-    balaustre.numero = newData.NumeroBalaustre;
-
-    const dateParts = newData.DiaSessao.split(" de ");
-    if (dateParts.length === 3) {
-      balaustre.ano = parseInt(dateParts[2], 10);
-    }
-
-    await balaustre.save();
-
-    // Tenta deletar o PDF antigo após a atualização bem-sucedida
-    if (oldPdfPath) {
-      try {
-        await deleteLocalFile(oldPdfPath);
-      } catch (deleteError) {
-        console.warn(`Erro ao deletar o PDF antigo ${oldPdfPath}:`, deleteError);
-      }
-    }
-
-    res
-      .status(200)
-      .json({
-        message: "Balaústre atualizado e regenerado com sucesso!",
-        balaustre,
-      });
-  } catch (error) {
-    console.error("Erro ao atualizar o balaústre:", error.stack);
-    res
-      .status(500)
-      .json({
-        message: "Falha ao atualizar o balaústre.",
-        errorDetails: error.message,
-        stack: error.stack,
-      });
-  }
 };
 
 export const setNextBalaustreNumber = async (req, res) => {

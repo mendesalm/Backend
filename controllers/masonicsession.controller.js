@@ -9,6 +9,8 @@ import {
   createEditalFromTemplate,
   createConviteFromTemplate,
   deleteLocalFile,
+  regenerateBalaustrePdf,
+  regenerateEditalPdf,
 } from "../services/documents.service.js";
 import { avancarEscalaSequencialEObterResponsavel } from "../services/escala.service.js";
 import { getNextNumber } from "../services/numbering.service.js";
@@ -336,16 +338,18 @@ export const createSession = async (req, res) => {
       ),
     };
 
-    const [balaustreInfo, editalInfo, conviteInfo] = await Promise.all([
-      createBalaustreFromTemplate(dadosParaTemplate, novaSessao.id),
-      createEditalFromTemplate(dadosParaTemplate),
-      createConviteFromTemplate(dadosParaTemplate),
-    ]);
+    const balaustre = await createBalaustreFromTemplate(dadosParaTemplate, novaSessao.id);
+    const edital = await createEditalFromTemplate(dadosParaTemplate, novaSessao.id);
+    const conviteInfo = await createConviteFromTemplate(dadosParaTemplate);
+
+    // Regenerate the PDF to include initial signature lines
+    const { pdfPath: balaustrePdfPath } = await regenerateBalaustrePdf(balaustre.id);
+    const { pdfPath: editalPdfPath } = await regenerateEditalPdf(edital.id);
 
     await db.MasonicSession.update(
       {
-        caminhoEditalPdf: editalInfo.pdfPath,
-        caminhoBalaustrePdf: balaustreInfo.pdfPath,
+        caminhoEditalPdf: editalPdfPath,
+        caminhoBalaustrePdf: balaustrePdfPath,
         caminhoConvitePdf: conviteInfo.pdfPath,
       },
       { where: { id: novaSessao.id } }
@@ -353,7 +357,7 @@ export const createSession = async (req, res) => {
 
     enviarEditalDeConvocacaoPorEmail(
       novaSessao,
-      editalInfo.pdfPath.substring(1)
+      editalPdfPath.substring(1)
     );
 
     const sessaoCompleta = await db.MasonicSession.findByPk(novaSessao.id, {
@@ -391,7 +395,25 @@ export const updateSession = async (req, res) => {
     if (!session) {
       return res.status(404).json({ message: "Sessão não encontrada." });
     }
+
+    // Restrição de edição para Editais assinados
+    if (session.statusEdital === 'Assinado') {
+        const userIsAdmin = req.user.credencialAcesso === 'Webmaster';
+        const userCargos = await db.CargoExercido.findAll({ where: { lodgeMemberId: req.user.id, dataTermino: null } });
+        const userIsVeneravel = userCargos.some(c => c.nomeCargo === 'Venerável Mestre');
+
+        if (!userIsAdmin && !userIsVeneravel) {
+            return res.status(403).json({ message: "Acesso negado. Este Edital já foi assinado e só pode ser editado pelo Venerável Mestre ou Webmaster." });
+        }
+    }
+
     await session.update(req.body);
+
+    // Regenerate Edital PDF if it exists
+    if (session.caminhoEditalPdf) {
+      const { pdfPath: editalPdfPath } = await regenerateEditalPdf(id);
+      await session.update({ caminhoEditalPdf: editalPdfPath });
+    }
 
     // Re-fetch the session with all required associations
     const updatedSession = await db.MasonicSession.findByPk(id, {
@@ -765,10 +787,13 @@ export const gerarBalaustreSessao = async (req, res) => {
     };
 
     // --- Geração e Salvamento do Novo Balaústre ---
-    const { pdfPath } = await createBalaustreFromTemplate(
+    const balaustre = await createBalaustreFromTemplate(
       dadosParaTemplate,
       sessao.id
     );
+
+    // Regenerate the PDF to include initial signature lines
+    const { pdfPath } = await regenerateBalaustrePdf(balaustre.id);
 
     // Update the session with the new balaustre path
     await db.MasonicSession.update(

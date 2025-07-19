@@ -45,6 +45,7 @@ import documentoGeradoRoutes from "./routes/documentoGerado.routes.js";
 import solicitacaoRoutes from "./routes/solicitacao.routes.js";
 import lojaRoutes from "./routes/loja.routes.js";
 import corpoMensagemRoutes from "./routes/corpoMensagem.routes.js";
+import editalRoutes from "./routes/edital.routes.js";
 // Importa o agendador de tarefas
 import { startScheduler } from "./scheduler.js";
 
@@ -124,6 +125,7 @@ const startServer = async () => {
     app.use("/api/documentos-gerados", documentoGeradoRoutes);
     app.use("/api/lojas", lojaRoutes);
     app.use("/api/mensagens", corpoMensagemRoutes);
+    app.use("/api/editais", editalRoutes);
 
     // Iniciar o servidor
     app.listen(PORT, () => {

@@ -17,6 +17,7 @@
     "nodemailer": "^7.0.3",
     "pdfmake": "^0.2.20",
     "puppeteer": "^24.13.0",
+    "sanitize-html": "^2.17.0",
     "sequelize": "^6.37.7",
     "sequelizer": "^1.1.4"
   },

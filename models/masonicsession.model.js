@@ -60,6 +60,15 @@ export default (sequelize, DataTypes) => {
       caminhoEditalPdf: { type: DataTypes.STRING, allowNull: true },
       caminhoBalaustrePdf: { type: DataTypes.STRING, allowNull: true },
       caminhoConvitePdf: { type: DataTypes.STRING, allowNull: true },
+      statusEdital: {
+        type: DataTypes.ENUM('Rascunho', 'Assinado'),
+        allowNull: false,
+        defaultValue: 'Rascunho',
+      },
+      assinaturasEdital: {
+        type: DataTypes.JSON,
+        allowNull: true,
+      },
       // responsavelJantarLodgeMemberId é FK
       classeSessao: {
         type: DataTypes.VIRTUAL,

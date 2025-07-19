@@ -41,9 +41,18 @@ export default (sequelize, DataTypes) => {
         type: DataTypes.JSON,
         allowNull: true,
       },
-      MasonicSessionId: {
-        type: DataTypes.INTEGER,
+      MasonicSessionId: { type: DataTypes.INTEGER, allowNull: false },
+      
+      // --- NOVOS CAMPOS ADICIONADOS ---
+      status: {
+        type: DataTypes.ENUM('Rascunho', 'Assinado'),
         allowNull: false,
+        defaultValue: 'Rascunho',
+      },
+      assinaturas: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: {},
       },
     },
     {
