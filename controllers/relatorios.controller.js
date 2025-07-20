@@ -305,7 +305,7 @@ export const gerarRelatorioDatasMaconicas = async (req, res) => {
           data: new Date(data).toLocaleDateString("pt-BR", {
             day: "2-digit",
             month: "2-digit",
-            timeZone: "UTC",
+            timeZone: "America/Sao_Paulo",
           }),
           tipo: tipoAniversario,
           anosComemorados: anoAtual - new Date(data).getFullYear(),

@@ -1,6 +1,6 @@
 import db from "../models/index.js";
 import { getNextNumber } from "./numbering.service.js";
-import { readFileSync, mkdirSync, existsSync, unlinkSync } from "fs";
+import { readFileSync, mkdirSync, existsSync, unlinkSync, writeFileSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import puppeteer from "puppeteer";
@@ -83,7 +83,7 @@ const prepareHtmlForPdf = (templateName, data) => {
   data.backgroundImage = imageToBase64("assets/images/cartao_fundo.svg");
 
   Object.entries(data).forEach(([key, value]) => {
-    const regex = new RegExp(`{{{${key}}}}`, "g");
+    const regex = new RegExp(`{{2,3}${key}}{2,3}`, "g");
     htmlContent = htmlContent.replace(regex, String(value ?? ""));
   });
 
@@ -253,17 +253,8 @@ async function generateConvitePdf(data) {
 
 // --- Funções Públicas de Orquestração ---
 
-export async function createBalaustreFromTemplate(data, masonicSessionId) {
-  const transaction = await db.sequelize.transaction();
-  try {
-    const nextBalaustreNumber = await getNextNumber("balaustre", transaction);
-    data.NumeroBalaustre = nextBalaustreNumber;
-    await transaction.commit();
-  } catch (error) {
-    await transaction.rollback();
-    console.error("Erro ao obter o próximo número de balaústre:", error);
-    throw error;
-  }
+export async function createBalaustreFromTemplate(data, masonicSessionId, sessionNumber) {
+  data.NumeroBalaustre = sessionNumber;
 
   const cargoPlaceholderMapping = {
     "Venerável Mestre": "Veneravel",
@@ -307,7 +298,7 @@ export async function createBalaustreFromTemplate(data, masonicSessionId) {
   const pdfResult = await regenerateBalaustrePdf(null, processedData);
 
   // Crie a entrada do balaústre no banco de dados
-  await db.Balaustre.create({
+  const createdBalaustre = await db.Balaustre.create({
     numero: processedData.NumeroBalaustre,
     ano: new Date().getFullYear(), // Ou extraia de 'data' se disponível
     path: pdfResult.pdfPath,
@@ -319,7 +310,7 @@ export async function createBalaustreFromTemplate(data, masonicSessionId) {
     assinaturas: {},
   });
 
-  return pdfResult;
+  return createdBalaustre;
 }
 
 export async function regenerateBalaustrePdf(balaustreId, data) {
@@ -367,38 +358,28 @@ export async function regenerateBalaustrePdf(balaustreId, data) {
   return pdfResult;
 }
 
-export async function createEditalFromTemplate(editalData) {
-  const transaction = await db.sequelize.transaction();
-  try {
-    const nextEditalNumber = await getNextNumber("edital", transaction);
-    editalData.NumeroBalaustre = nextEditalNumber; // Reusing NumeroBalaustre for edital number
-    await transaction.commit();
-  } catch (error) {
-    await transaction.rollback();
-    console.error("Erro ao obter o próximo número de edital:", error);
-    throw error;
-  }
-  const pdfResult = await regenerateEditalPdf(editalData.masonicSessionId, editalData);
+export async function createEditalFromTemplate(editalData, signerName, sessionNumber) {
+  editalData.NumeroBalaustre = sessionNumber;
+  const pdfResult = await regenerateEditalPdf(editalData, signerName);
 
   return pdfResult;
 }
 
-export async function regenerateEditalPdf(sessionId, data) {
-  const session = await db.MasonicSession.findByPk(sessionId);
-  const templateData = data || session.dataValues;
+export async function regenerateEditalPdf(editalData, signerName) {
+  const templateData = editalData;
 
   const logoBase64 = imageToBase64("assets/images/logoJPJ_.png");
 
-  const buildSignatureBlock = (signatureInfo, role) => {
-    if (signatureInfo) {
+  const buildSignatureBlock = (name, role) => {
+    if (name) {
       return `
         <div class="signature-seal">
           <div class="seal-content">
             <div class="seal-logo"><img src="${logoBase64}" alt="Logo"></div>
             <div class="seal-text">
-              <div class="signer-name">${signatureInfo.nome}</div>
+              <div class="signer-name">${name}</div>
               <div class="signer-role">${role}</div>
-              <div class="signer-timestamp">${signatureInfo.timestamp}</div>
+              <div class="signer-timestamp">${new Date().toLocaleString("pt-BR")}</div>
             </div>
           </div>
         </div>`;
@@ -413,13 +394,10 @@ export async function regenerateEditalPdf(sessionId, data) {
     }
   };
 
-  const assinaturas = session.assinaturasEdital || {};
-  templateData.chancelerSignatureBlock = buildSignatureBlock(assinaturas.chanceler, "Chanceler");
-  templateData.veneravelmestreSignatureBlock = buildSignatureBlock(assinaturas.veneravelmestre, "Venerável Mestre");
+  templateData.chancelerSignatureBlock = buildSignatureBlock(signerName, "Chanceler");
+  templateData.veneravelmestreSignatureBlock = buildSignatureBlock(null, "Venerável Mestre"); // Assuming Venerável Mestre does not sign automatically
 
   const pdfResult = await generateEditalPdf(templateData);
-
-  await session.update({ caminhoEditalPdf: pdfResult.pdfPath });
 
   return pdfResult;
 }

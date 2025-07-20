@@ -5,7 +5,7 @@ export default (sequelize, DataTypes) => {
       id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
       numero: { type: DataTypes.INTEGER, allowNull: true },
       dataSessao: {
-        type: DataTypes.DATEONLY,
+        type: DataTypes.DATE,
         allowNull: false,
         validate: {
           notEmpty: { msg: "Data da sessão é obrigatória." },
@@ -13,24 +13,24 @@ export default (sequelize, DataTypes) => {
         },
       },
       tipoSessao: {
-        type: DataTypes.ENUM("Ordinária", "Magna", "Especial", "Econômica"),
+        type: DataTypes.ENUM("Ordinária", "Magna", "Publica", "Especial"),
         allowNull: false,
         validate: {
           notEmpty: { msg: "O tipo da sessão é obrigatório." },
           isIn: {
-            args: [["Ordinária", "Magna", "Especial", "Econômica"]],
-            msg: "Tipo de sessão inválido. Valores permitidos: Ordinária, Magna, Especial, Econômica.",
+            args: [["Ordinária", "Magna", "Publica", "Especial"]],
+            msg: "Tipo de sessão inválido. Valores permitidos: Ordinária, Magna, Publica, Especial.",
           },
         },
       },
       subtipoSessao: {
-        type: DataTypes.ENUM("Aprendiz", "Companheiro", "Mestre", "Exaltação", "Iniciação", "Elevação", "Pública"),
+        type: DataTypes.ENUM("Aprendiz", "Companheiro", "Mestre", "Instalação e Posse", "Comemorativa", "Iniciação", "Elevação", "Exaltação"),
         allowNull: false,
         validate: {
           notEmpty: { msg: "O grau da sessão é obrigatório." },
           isIn: {
-            args: [["Aprendiz", "Companheiro", "Mestre", "Exaltação", "Iniciação", "Elevação", "Pública"]],
-            msg: "Subtipo de sessão inválido. Valores permitidos: Aprendiz, Companheiro, Mestre, Exaltação, Iniciação, Elevação, Pública.",
+            args: [["Aprendiz", "Companheiro", "Mestre", "Instalação e Posse", "Comemorativa", "Iniciação", "Elevação", "Exaltação"]],
+            msg: "Subtipo de sessão inválido. Valores permitidos: Aprendiz, Companheiro, Mestre, Instalação e Posse, Comemorativa, Iniciação, Elevação, Exaltação.",
           },
         },
       },
@@ -60,14 +60,15 @@ export default (sequelize, DataTypes) => {
       caminhoEditalPdf: { type: DataTypes.STRING, allowNull: true },
       caminhoBalaustrePdf: { type: DataTypes.STRING, allowNull: true },
       caminhoConvitePdf: { type: DataTypes.STRING, allowNull: true },
-      statusEdital: {
-        type: DataTypes.ENUM('Rascunho', 'Assinado'),
-        allowNull: false,
-        defaultValue: 'Rascunho',
-      },
-      assinaturasEdital: {
-        type: DataTypes.JSON,
+      balaustreId: {
+        type: DataTypes.INTEGER,
         allowNull: true,
+        references: {
+          model: 'Balaustres',
+          key: 'id',
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL',
       },
       // responsavelJantarLodgeMemberId é FK
       classeSessao: {
@@ -155,7 +156,15 @@ export default (sequelize, DataTypes) => {
       );
     }
 
-    
+    // Nova associação com Balaustre
+    if (models.Balaustre) {
+      MasonicSession.belongsTo(models.Balaustre, {
+        as: "balaustre",
+        foreignKey: { name: "balaustreId", allowNull: true },
+      });
+    } else {
+      console.error("MODELO AUSENTE: Balaustre não pôde ser associado em MasonicSession.");
+    }
   };
 
   return MasonicSession;

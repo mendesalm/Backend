@@ -1,6 +1,6 @@
 // backend/validators/masonicsession.validator.js
 import { body, param } from "express-validator";
-import { validate } from "../utils/validationHelpers.js"; // Importa o handler de validação genérico
+import { validate } from "../utils/validationHelpers.js";
 import db from "../models/index.js";
 
 const TIPO_SESSAO_ENUM = ["Ordinária", "Magna", "Especial", "Econômica"];
@@ -14,13 +14,39 @@ const SUBTIPO_SESSAO_ENUM = [
   "Pública",
 ];
 
+// --- CUSTOM VALIDATOR ---
+const parseAndValidateDate = (dateString) => {
+  const regex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+  if (!regex.test(dateString)) {
+    throw new Error(
+      "O formato da dataSessao é inválido. Use YYYY-MM-DDTHH:mm."
+    );
+  }
+
+  console.log(`[Validator] Input dateString: ${dateString}`);
+  // Append São Paulo timezone offset (-03:00) to the date string
+  // This assumes São Paulo is consistently -03:00 and doesn't account for DST changes, which is usually fine for fixed offsets.
+  const dateWithTimezone = `${dateString}:00-03:00`;
+  console.log(`[Validator] Date string with timezone: ${dateWithTimezone}`);
+  const date = new Date(dateWithTimezone);
+  console.log(`[Validator] Parsed Date (ISO): ${date.toISOString()}`);
+  console.log(`[Validator] Parsed Date (Local String): ${date.toString()}`);
+
+  if (isNaN(date.getTime())) {
+    throw new Error("A dataSessao fornecida não é uma data e hora válidas.");
+  }
+
+  return date;
+};
+
 /**
  * Regras de validação para a criação de uma nova sessão.
  */
 export const validateSessionCreation = [
   body("dataSessao")
-    .isISO8601()
-    .withMessage("A data da sessão deve estar no formato AAAA-MM-DD."),
+    .notEmpty()
+    .withMessage("O campo dataSessao é obrigatório.")
+    .custom(parseAndValidateDate),
   body("tipoSessao")
     .notEmpty()
     .withMessage("O tipo da sessão é obrigatório.")
@@ -46,10 +72,10 @@ export const validateSessionCreation = [
  * Regras de validação para a atualização de uma sessão.
  */
 export const validateSessionUpdate = [
-  body("dataSessao").optional().isISO8601().toDate(),
+  body("dataSessao").optional().custom(parseAndValidateDate),
   body("tipoSessao").optional().isIn(TIPO_SESSAO_ENUM),
   body("subtipoSessao").optional().isIn(SUBTIPO_SESSAO_ENUM),
-  body("troncoDeBeneficencia").optional().isDecimal(),
+  body("troncoDeBeneficiencia").optional().isDecimal(),
   validate,
 ];
 

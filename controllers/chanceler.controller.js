@@ -51,7 +51,7 @@ export const getChanceryReportsPage = async (req, res) => {
 
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { formatInTimeZone } from "date-fns-tz";
+
 
 export const gerarCartaoManual = async (req, res) => {
   const { memberId, familyMemberId } = req.body;
@@ -122,7 +122,7 @@ export const gerarCartaoManual = async (req, res) => {
     // Formatar a data de nascimento para o template
     
     aniversarianteData.NOME_ANIVERSARIANTE = nomeCompleto;
-    aniversarianteData.DATA_ANIVERSARIO = formatInTimeZone(dataNascimento, 'America/Sao_Paulo', "dd 'de' MMMM", { locale: ptBR });
+    aniversarianteData.DATA_ANIVERSARIO = format(dataNascimento, "dd 'de' MMMM", { locale: ptBR });
     aniversarianteData.ANO_ATUAL = format(new Date(), "yyyy");
 
     const { pdfPath } = await createCartaoAniversarioFromTemplate(db, aniversarianteData, subtipoMensagem);

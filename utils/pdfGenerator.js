@@ -305,7 +305,7 @@ export const gerarPdfAniversariantes = async (aniversariantes, mes) => {
     pageOrientation: "landscape",
     content: [
       { text: `Aniversariantes do Mês de ${mes}`, style: "header" },
-      { text: `Gerado em: ${new Date().toLocaleDateString("pt-BR")}` },
+      { text: `Gerado em: ${new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}` },
       {
         style: "tableExample",
         ...createZebraTable({
@@ -352,7 +352,7 @@ export const gerarPdfCargosGestao = async (cargos) => {
   const docDefinition = {
     content: [
       { text: `Relatório de Cargos da Gestão Atual`, style: "header" },
-      { text: `Gerado em: ${new Date().toLocaleDateString("pt-BR")}` },
+      { text: `Gerado em: ${new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}` },
       {
         style: "tableExample",
         ...createZebraTable({
@@ -435,7 +435,7 @@ export const gerarPdfDatasMaconicas = async (datas, mes) => {
   const docDefinition = {
     content: [
       { text: `Relatório de Datas Maçônicas - ${mes}`, style: "header" },
-      { text: `Gerado em: ${new Date().toLocaleDateString("pt-BR")}` },
+      { text: `Gerado em: ${new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}` },
       {
         style: "tableExample",
         ...createZebraTable({
@@ -487,7 +487,7 @@ export const gerarPdfEmprestimos = async (emprestimos) => {
   const docDefinition = {
     content: [
       { text: title, style: "header" },
-      { text: `Gerado em: ${new Date().toLocaleDateString("pt-BR")}` },
+      { text: `Gerado em: ${new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}` },
       {
         style: "tableExample",
         ...createZebraTable({
@@ -620,7 +620,7 @@ export const gerarPdfPatrimonio = async (itens) => {
   const docDefinition = {
     content: [
       { text: "Relatório de Patrimônio", style: "header" },
-      { text: `Gerado em: ${new Date().toLocaleDateString("pt-BR")}` },
+      { text: `Gerado em: ${new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}` },
       {
         style: "tableExample",
         ...createZebraTable({

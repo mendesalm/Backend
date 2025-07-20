@@ -1,7 +1,7 @@
 // backend/controllers/masonicsession.controller.js
 import db from "../models/index.js";
-import { formatInTimeZone } from "date-fns-tz";
 import { ptBR } from "date-fns/locale";
+import { format } from "date-fns";
 
 // --- Serviços ---
 import {
@@ -10,55 +10,98 @@ import {
   createConviteFromTemplate,
   deleteLocalFile,
   regenerateBalaustrePdf,
-  regenerateEditalPdf,
 } from "../services/documents.service.js";
 import { avancarEscalaSequencialEObterResponsavel } from "../services/escala.service.js";
-import { getNextNumber } from "../services/numbering.service.js";
+import { getNextNumber, revertNumber } from "../services/numbering.service.js";
 import { enviarEditalDeConvocacaoPorEmail } from "../services/notification.service.js";
-
+import { Op } from "sequelize";
 /**
  * Lista todas as sessões.
  */
 export const getAllSessions = async (req, res) => {
   try {
-    const { sortBy = "dataSessao", order = "DESC", tipoSessao } = req.query;
-    const whereClause = {};
-    if (tipoSessao) {
-      whereClause.tipoSessao = tipoSessao;
-    }
+    const {
+      sortBy = "dataSessao",
+      order = "DESC",
+      tipoSessao,
+      limit,
+      startDate,
+    } = req.query;
 
-    const sessions = await db.MasonicSession.findAll({
-      where: whereClause,
-      include: [
-        {
-          model: db.LodgeMember,
-          as: "responsavelJantar",
-          attributes: ["id", "NomeCompleto"],
-          required: false,
-          include: [
-            {
-              model: db.FamilyMember,
-              as: "familiares",
-              attributes: ["nomeCompleto", "parentesco"],
-              where: { parentesco: "Cônjuge" },
-              required: false,
-            },
-          ],
-        },
-        {
-          model: db.SessionAttendee,
-          as: "attendees",
-          include: [
-            {
-              model: db.LodgeMember,
-              as: "membro",
-              attributes: ["id", "NomeCompleto", "CIM", "Graduacao"],
-            },
-          ],
-        },
-      ],
-      order: [[sortBy, order.toUpperCase()]],
-    });
+    // Definição do 'include' para reutilização
+    const includeClause = [
+      {
+        model: db.LodgeMember,
+        as: "responsavelJantar",
+        attributes: ["id", "NomeCompleto"],
+        required: false,
+        include: [
+          {
+            model: db.FamilyMember,
+            as: "familiares",
+            attributes: ["nomeCompleto", "parentesco"],
+            where: { parentesco: "Cônjuge" },
+            required: false,
+          },
+        ],
+      },
+      {
+        model: db.SessionAttendee,
+        as: "attendees",
+        include: [
+          {
+            model: db.LodgeMember,
+            as: "membro",
+            attributes: ["id", "NomeCompleto", "CIM", "Graduacao"],
+          },
+        ],
+      },
+      {
+        model: db.Balaustre,
+        as: "balaustre", // Usando o alias do seu código
+        attributes: ["id", "caminhoPdfLocal"],
+        required: false,
+      },
+    ];
+
+    let sessions;
+
+    if (startDate) {
+      // --- NOVA LÓGICA PARA BUSCAR SESSÕES FUTURAS E PASSADAS ---
+      const referenceDate = new Date(startDate);
+      const whereConditions = tipoSessao ? { tipoSessao } : {};
+
+      const futureSessions = await db.MasonicSession.findAll({
+        where: { ...whereConditions, dataSessao: { [Op.gte]: referenceDate } },
+        include: includeClause,
+        order: [["dataSessao", "ASC"]],
+        limit: 5,
+      });
+
+      const pastSessions = await db.MasonicSession.findAll({
+        where: { ...whereConditions, dataSessao: { [Op.lt]: referenceDate } },
+        include: includeClause,
+        order: [["dataSessao", "DESC"]],
+        limit: 5,
+      });
+
+      // Combina os resultados, com os passados primeiro (em ordem cronológica)
+      sessions = [...pastSessions.reverse(), ...futureSessions];
+    } else {
+      // --- LÓGICA ORIGINAL COM ADIÇÃO DO 'LIMIT' ---
+      const whereClause = tipoSessao ? { tipoSessao } : {};
+      const queryOptions = {
+        where: whereClause,
+        include: includeClause,
+        order: [[sortBy, order.toUpperCase()]],
+      };
+
+      if (limit) {
+        queryOptions.limit = parseInt(limit);
+      }
+
+      sessions = await db.MasonicSession.findAll(queryOptions);
+    }
 
     const sessoesFormatadas = await Promise.all(
       sessions.map(async (sessao) => {
@@ -75,21 +118,18 @@ export const getAllSessions = async (req, res) => {
             sessaoJSON.responsavelJantar.familiares[0].nomeCompleto;
         }
 
-        // Estruturar Edital e Balaustre como objetos
+        // --- LÓGICA DE FORMATAÇÃO PRESERVADA ---
+        sessaoJSON.balaustre = sessaoJSON.caminhoBalaustrePdf
+          ? { caminhoPdfLocal: sessaoJSON.caminhoBalaustrePdf }
+          : sessaoJSON.balaustre || null; // Mantém o balaustre do include se existir
+
         sessaoJSON.edital = sessaoJSON.caminhoEditalPdf
           ? { caminhoPdfLocal: sessaoJSON.caminhoEditalPdf }
           : null;
-        sessaoJSON.balaustre = sessaoJSON.caminhoBalaustrePdf
-          ? { caminhoPdfLocal: sessaoJSON.caminhoBalaustrePdf }
-          : null;
+
         sessaoJSON.convite = sessaoJSON.caminhoConvitePdf
           ? { caminhoPdfLocal: sessaoJSON.caminhoConvitePdf }
           : null;
-
-        // Remover as propriedades diretas para evitar redundância
-        delete sessaoJSON.caminhoEditalPdf;
-        delete sessaoJSON.caminhoBalaustrePdf;
-        delete sessaoJSON.caminhoConvitePdf;
 
         return sessaoJSON;
       })
@@ -98,12 +138,10 @@ export const getAllSessions = async (req, res) => {
     res.status(200).json(sessoesFormatadas);
   } catch (error) {
     console.error("Erro em getAllSessions:", error);
-    res
-      .status(500)
-      .json({
-        message: "Erro ao listar sessões maçónicas.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao listar sessões maçónicas.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -144,6 +182,12 @@ export const getSessionById = async (req, res) => {
           as: "visitantes",
           attributes: ["id", "nomeCompleto", "graduacao", "loja"],
         },
+        {
+          model: db.Balaustre,
+          as: "balaustre",
+          attributes: ["id", "caminhoPdfLocal"],
+          required: false,
+        },
       ],
     });
     if (!session) {
@@ -160,27 +204,23 @@ export const getSessionById = async (req, res) => {
     sessionJSON.edital = sessionJSON.caminhoEditalPdf
       ? { caminhoPdfLocal: sessionJSON.caminhoEditalPdf }
       : null;
-    sessionJSON.balaustre = sessionJSON.caminhoBalaustrePdf
-      ? { caminhoPdfLocal: sessionJSON.caminhoBalaustrePdf }
-      : null;
+
     sessionJSON.convite = sessionJSON.caminhoConvitePdf
       ? { caminhoPdfLocal: sessionJSON.caminhoConvitePdf }
       : null;
 
     // Remover as propriedades diretas para evitar redundância
     delete sessionJSON.caminhoEditalPdf;
-    delete sessionJSON.caminhoBalaustrePdf;
+
     delete sessionJSON.caminhoConvitePdf;
 
     res.status(200).json(sessionJSON);
   } catch (error) {
     console.error("Erro em getSessionById:", error);
-    res
-      .status(500)
-      .json({
-        message: "Erro ao buscar detalhes da sessão.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao buscar detalhes da sessão.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -188,9 +228,13 @@ export const getSessionById = async (req, res) => {
  * Cria uma nova sessão, popula a lista de presença, avança a escala e gera documentos.
  */
 export const createSession = async (req, res) => {
-  // O validador já converteu a string 'YYYY-MM-DD' para um objeto Date.
-  const { dataSessao, tipoSessao, subtipoSessao, ...restOfBody } = req.body;
-  const timeZone = "America/Sao_Paulo";
+  // O validador já converteu a string para um objeto Date UTC.
+  let { dataSessao, tipoSessao, subtipoSessao, ...restOfBody } = req.body;
+
+  // Ensure dataSessao is a Date object
+  if (!(dataSessao instanceof Date)) {
+    dataSessao = new Date(dataSessao);
+  }
 
   let novaSessao;
   const transaction = await db.sequelize.transaction();
@@ -248,13 +292,11 @@ export const createSession = async (req, res) => {
   } catch (error) {
     await transaction.rollback();
     console.error("Erro na transação de criação da sessão:", error);
-    return res
-      .status(500)
-      .json({
-        message:
-          "Falha ao criar a sessão, popular presenças ou processar a escala.",
-        errorDetails: error.message,
-      });
+    return res.status(500).json({
+      message:
+        "Falha ao criar a sessão, popular presenças ou processar a escala.",
+      errorDetails: error.message,
+    });
   }
 
   try {
@@ -289,76 +331,124 @@ export const createSession = async (req, res) => {
       return cargo?.membro?.NomeCompleto || "(A preencher)";
     };
 
-    const [veneravel, chanceler] = await Promise.all([
+    const [
+      veneravel,
+      primeiroVigilante,
+      segundoVigilante,
+      orador,
+      secretario,
+      tesoureiro,
+      chanceler,
+    ] = await Promise.all([
       findOficial("Venerável Mestre"),
+      findOficial("Primeiro Vigilante"),
+      findOficial("Segundo Vigilante"),
+      findOficial("Orador"),
+      findOficial("Secretário"),
+      findOficial("Tesoureiro"),
       findOficial("Chanceler"),
     ]);
+
+    const numeroIrmaosQuadro = await db.SessionAttendee.count({
+      where: { sessionId: novaSessao.id, statusPresenca: "Presente" },
+    });
+    const numeroVisitantes = await db.VisitanteSessao.count({
+      where: { masonicSessionId: novaSessao.id },
+    });
 
     let classeSessaoFormatada = `Sessão ${tipoSessao} no Grau de ${subtipoSessao} Maçom`;
     if (["pública", "comemorativa"].includes(tipoSessao.toLowerCase())) {
       classeSessaoFormatada = `Sessão ${tipoSessao}`;
     }
 
-    const dataSessaoObj = new Date(dataSessao);
-
     const dadosParaTemplate = {
+      NumeroBalaustre: novaSessao.numero,
       ClasseSessao: classeSessaoFormatada,
+      DiaSessao: format(
+        dataSessao,
+        "dd 'de' MMMM 'de' yyyy",
+        { locale: ptBR }
+      ),
+      DataAssinatura: format(
+        new Date(),
+        "dd 'de' MMMM 'de' yyyy",
+        { locale: ptBR }
+      ),
+      data_sessao_extenso: format(
+        dataSessao,
+        "dd 'de' MMMM 'de' yyyy",
+        { locale: ptBR }
+      ),
+      dia_semana: format(dataSessao, "EEEE", {
+        locale: ptBR,
+      }),
+      formattedDateForFilename: format(
+        dataSessao,
+        "ddMMyy"
+      ),
       ResponsavelJantar: nomeFinalResponsavel,
       hora_sessao: "19h30",
       Veneravel: veneravel,
+      PrimeiroVigilante: primeiroVigilante,
+      SegundoVigilante: segundoVigilante,
+      Orador: orador,
+      Secretario: secretario,
+      Tesoureiro: tesoureiro,
       Chanceler: chanceler,
-      NumeroBalaustre: novaSessao.numero,
+      NumeroIrmaosQuadro: numeroIrmaosQuadro,
+      NumeroVisitantes: numeroVisitantes,
+      DataSessaoAnterior: "",
+      EmendasBalaustreAnterior: "",
+      ExpedienteRecebido: "",
+      ExpedienteExpedido: "",
+      SacoProposta: "",
+      OrdemDia: "",
+      Escrutinio: "",
+      TempoInstrucao: "",
+      TroncoBeneficiencia: "",
+      Palavra: "",
+      Emendas: "",
+      // Convite specific placeholders
       tipo_sessao: tipoSessao,
       grau_sessao: subtipoSessao,
-      DiaSessao: formatInTimeZone(
-        dataSessaoObj,
-        timeZone,
-        "dd 'de' MMMM 'de' yyyy",
-        { locale: ptBR }
-      ),
-      DataAssinatura: formatInTimeZone(
-        new Date(),
-        timeZone,
-        "dd 'de' MMMM 'de' yyyy",
-        { locale: ptBR }
-      ),
-      data_sessao_extenso: formatInTimeZone(
-        dataSessaoObj,
-        timeZone,
-        "dd 'de' MMMM 'de' yyyy",
-        { locale: ptBR }
-      ),
-      dia_semana: formatInTimeZone(dataSessaoObj, timeZone, "EEEE", {
-        locale: ptBR,
-      }),
-      formattedDateForFilename: formatInTimeZone(
-        dataSessaoObj,
-        timeZone,
-        "ddMMyy"
-      ),
     };
 
-    const balaustre = await createBalaustreFromTemplate(dadosParaTemplate, novaSessao.id);
-    const edital = await createEditalFromTemplate(dadosParaTemplate, novaSessao.id);
+    console.log("[createSession] dadosParaTemplate:", dadosParaTemplate);
+
+    const balaustreInstance = await createBalaustreFromTemplate(
+      dadosParaTemplate,
+      novaSessao.id,
+      novaSessao.numero
+    );
+    console.log("[createSession] balaustreInstance:", balaustreInstance);
+
+    const edital = await createEditalFromTemplate(
+      dadosParaTemplate,
+      req.user.NomeCompleto,
+      novaSessao.numero
+    );
+    console.log("[createSession] edital:", edital);
+
     const conviteInfo = await createConviteFromTemplate(dadosParaTemplate);
+    console.log("[createSession] conviteInfo:", conviteInfo);
 
     // Regenerate the PDF to include initial signature lines
-    const { pdfPath: balaustrePdfPath } = await regenerateBalaustrePdf(balaustre.id);
-    const { pdfPath: editalPdfPath } = await regenerateEditalPdf(edital.id);
+    const { pdfPath: balaustrePdfPath } = await regenerateBalaustrePdf(
+      balaustreInstance.id
+    );
+    console.log("[createSession] regenerated balaustrePdfPath:", balaustrePdfPath);
 
     await db.MasonicSession.update(
       {
-        caminhoEditalPdf: editalPdfPath,
+        caminhoEditalPdf: edital.pdfPath,
         caminhoBalaustrePdf: balaustrePdfPath,
         caminhoConvitePdf: conviteInfo.pdfPath,
+        balaustreId: balaustreInstance.id, // Save the balaustreId
       },
       { where: { id: novaSessao.id } }
     );
 
-    enviarEditalDeConvocacaoPorEmail(
-      novaSessao,
-      editalPdfPath.substring(1)
-    );
+    enviarEditalDeConvocacaoPorEmail(novaSessao, edital.pdfPath.substring(1));
 
     const sessaoCompleta = await db.MasonicSession.findByPk(novaSessao.id, {
       include: [
@@ -375,14 +465,12 @@ export const createSession = async (req, res) => {
       "Erro nas operações secundárias (geração de docs/email):",
       error
     );
-    res
-      .status(201)
-      .json({
-        message:
-          "Sessão criada, mas com falha ao gerar documentos ou enviar e-mail.",
-        session: novaSessao,
-        errorDetails: error.message,
-      });
+    res.status(201).json({
+      message:
+        "Sessão criada, mas com falha ao gerar documentos ou enviar e-mail.",
+      session: novaSessao,
+      errorDetails: error.message,
+    });
   }
 };
 /**
@@ -390,30 +478,27 @@ export const createSession = async (req, res) => {
  */
 export const updateSession = async (req, res) => {
   const { id } = req.params;
+  // O validador já tratou a conversão de dataSessao, se presente.
+  const { dataSessao, ...outrosCampos } = req.body;
+
   try {
     const session = await db.MasonicSession.findByPk(id);
     if (!session) {
       return res.status(404).json({ message: "Sessão não encontrada." });
     }
 
-    // Restrição de edição para Editais assinados
-    if (session.statusEdital === 'Assinado') {
-        const userIsAdmin = req.user.credencialAcesso === 'Webmaster';
-        const userCargos = await db.CargoExercido.findAll({ where: { lodgeMemberId: req.user.id, dataTermino: null } });
-        const userIsVeneravel = userCargos.some(c => c.nomeCargo === 'Venerável Mestre');
-
-        if (!userIsAdmin && !userIsVeneravel) {
-            return res.status(403).json({ message: "Acesso negado. Este Edital já foi assinado e só pode ser editado pelo Venerável Mestre ou Webmaster." });
-        }
+    const updateData = { ...outrosCampos };
+    if (dataSessao) {
+      updateData.dataSessao = dataSessao; // dataSessao já é um objeto Date UTC
     }
 
-    await session.update(req.body);
+    await session.update(updateData);
 
     // Regenerate Edital PDF if it exists
-    if (session.caminhoEditalPdf) {
-      const { pdfPath: editalPdfPath } = await regenerateEditalPdf(id);
-      await session.update({ caminhoEditalPdf: editalPdfPath });
-    }
+    // if (session.caminhoEditalPdf) {
+    //   const { pdfPath: editalPdfPath } = await regenerateEditalPdf(id);
+    //   await session.update({ caminhoEditalPdf: editalPdfPath });
+    // }
 
     // Re-fetch the session with all required associations
     const updatedSession = await db.MasonicSession.findByPk(id, {
@@ -508,21 +593,27 @@ export const deleteSession = async (req, res) => {
       }
     }
 
+    // Reverter o número da sessão
+    if (session.numero) {
+      await revertNumber("session", session.numero, transaction);
+      console.log(`Número da sessão ${session.numero} revertido.`);
+    }
+
     // Deleta arquivos associados localmente
-    if (session.caminhoEditalPdf) {
-      await deleteLocalFile(session.caminhoEditalPdf).catch((err) =>
-        console.error("Falha ao deletar edital local:", err)
-      );
-    }
-    if (session.caminhoBalaustrePdf) {
-      await deleteLocalFile(session.caminhoBalaustrePdf).catch((err) =>
-        console.error("Falha ao deletar balaústre local:", err)
-      );
-    }
-    if (session.caminhoConvitePdf) {
-      await deleteLocalFile(session.caminhoConvitePdf).catch((err) =>
-        console.error("Falha ao deletar convite local:", err)
-      );
+    const filesToDelete = [
+      session.caminhoEditalPdf,
+      session.caminhoBalaustrePdf,
+      session.caminhoConvitePdf,
+    ].filter(Boolean); // Filter out null or undefined paths
+
+    for (const filePath of filesToDelete) {
+      try {
+        await deleteLocalFile(filePath);
+      } catch (err) {
+        console.error(`Falha crítica ao deletar arquivo local ${filePath}:`, err);
+        // Re-throw to ensure transaction rollback if file deletion fails
+        throw new Error(`Falha ao deletar arquivo associado: ${filePath}`);
+      }
     }
 
     // Finalmente, destrói o registro da sessão
@@ -691,7 +782,6 @@ export const gerarBalaustreSessao = async (req, res) => {
     }
 
     const { tipoSessao, subtipoSessao, dataSessao } = sessao;
-    const sessionDate = new Date(dataSessao);
 
     // --- Coleta de Dados Detalhada ---
 
@@ -754,14 +844,14 @@ export const gerarBalaustreSessao = async (req, res) => {
     const dadosParaTemplate = {
       NumeroBalaustre: sessao.numero,
       ClasseSessao: classeSessaoFormatada,
-      DiaSessao: sessionDate.toLocaleDateString("pt-BR", {
+      DiaSessao: dataSessao.toLocaleDateString("pt-BR", {
         dateStyle: "long",
         timeZone: "UTC",
       }),
       DataSessaoAnterior: "(A preencher)",
       HoraInicioSessao: "19h30",
       HoraEncerramento: "(A preencher)",
-      DataAssinatura: `Anápolis-Goiás, ${sessionDate.toLocaleDateString(
+      DataAssinatura: `Anápolis-Goiás, ${dataSessao.toLocaleDateString(
         "pt-BR",
         { dateStyle: "long", timeZone: "UTC" }
       )}`,
@@ -797,7 +887,10 @@ export const gerarBalaustreSessao = async (req, res) => {
 
     // Update the session with the new balaustre path
     await db.MasonicSession.update(
-      { caminhoBalaustrePdf: pdfPath },
+      {
+        caminhoBalaustrePdf: pdfPath,
+        balaustreId: balaustre.id,
+      },
       { where: { id: sessao.id } }
     );
 

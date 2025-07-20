@@ -99,19 +99,6 @@
         font-family: "Open Sans", sans-serif;
       }
 
-      .signatures-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 40px;
-      }
-
-      .signatures-table td {
-        padding: 5px;
-        border: none;
-        width: 50%;
-        text-align: center;
-      }
-
 .signature-seal {
     border: 1px solid #e0e0e0; background-color: #f7f7f7; border-radius: 8px;
     padding: 8px; display: inline-block; text-align: left;
@@ -171,16 +158,9 @@
         <span>Oriente de Anápolis, {{DataAssinatura}} – E∴ V∴</span>
       </p>
 
-      <table class="signatures-table">
-        <tr>
-          <td>
-            {{{veneravelmestreSignatureBlock}}}
-          </td>
-          <td>
-            {{{chancelerSignatureBlock}}}
-          </td>
-        </tr>
-      </table>
+      <p class="mso-sign" align="center" style="margin-top: 40px;">
+        {{{chancelerSignatureBlock}}}
+      </p>
     </div>
   </body>
 </html>
