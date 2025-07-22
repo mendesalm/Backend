@@ -55,6 +55,13 @@ export const uploadAta = multer({
   fileFilter: createFileFilter(/pdf|doc|docx/),
 });
 
+// --- Configuração para Upload de Balaústres (Minutas) ---
+export const uploadBalaustre = multer({
+  storage: createStorage("balaustres"),
+  limits: { fileSize: 1024 * 1024 * 10 }, // 10MB
+  fileFilter: createFileFilter(/pdf/),
+});
+
 // --- Configuração para Upload de Publicações ---
 export const uploadPublicacao = multer({
   storage: createStorage("publicacoes"),

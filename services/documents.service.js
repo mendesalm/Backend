@@ -1,6 +1,7 @@
 import db from "../models/index.js";
 import { getNextNumber } from "./numbering.service.js";
 import { readFileSync, mkdirSync, existsSync, unlinkSync, writeFileSync } from "fs";
+import * as fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import puppeteer from "puppeteer";
@@ -117,11 +118,12 @@ async function generateBalaustrePdf(data) {
 
   const pdfFileName = `balaustre_${data.NumeroBalaustre}_${data.formattedDateForFilename}.pdf`;
   const pdfFilePath = path.join(pdfDir, pdfFileName);
+  const tempPdfFilePath = path.join(pdfDir, `temp_${Date.now()}_${pdfFileName}`);
 
   await page.setContent(htmlContent, { waitUntil: "networkidle0" });
 
   await page.pdf({
-    path: pdfFilePath,
+    path: tempPdfFilePath,
     format: "A4",
     printBackground: true,
     margin: { top: "1cm", right: "1.5cm", bottom: "1cm", left: "1.5cm" },
@@ -133,6 +135,14 @@ async function generateBalaustrePdf(data) {
                                  <span class="pageNumber"></span> / <span class="totalPages"></span>
                              </div>
                          </div>`,
+  });
+
+  // Renomeia o arquivo temporário para o nome final
+  await new Promise((resolve, reject) => {
+    fs.rename(tempPdfFilePath, pdfFilePath, (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
   });
 
   await browser.close();
@@ -158,11 +168,12 @@ async function generateEditalPdf(data) {
 
   const pdfFileName = `edital_${data.NumeroBalaustre}_${data.formattedDateForFilename}.pdf`;
   const pdfFilePath = path.join(pdfDir, pdfFileName);
+  const tempPdfFilePath = path.join(pdfDir, `temp_${Date.now()}_${pdfFileName}`);
 
   await page.setContent(htmlContent, { waitUntil: "networkidle0" });
 
   await page.pdf({
-    path: pdfFilePath,
+    path: tempPdfFilePath,
     format: "A4",
     printBackground: true,
     margin: { top: "1cm", right: "1.5cm", bottom: "1cm", left: "1.5cm" },
@@ -174,6 +185,14 @@ async function generateEditalPdf(data) {
                                  <span class="pageNumber"></span> / <span class="totalPages"></span>
                              </div>
                          </div>`,
+  });
+
+  // Renomeia o arquivo temporário para o nome final
+  await new Promise((resolve, reject) => {
+    fs.rename(tempPdfFilePath, pdfFilePath, (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
   });
 
   await browser.close();
@@ -233,15 +252,24 @@ async function generateConvitePdf(data) {
 
   const pdfFileName = `convite_${data.formattedDateForFilename}.pdf`;
   const pdfFilePath = path.join(pdfDir, pdfFileName);
+  const tempPdfFilePath = path.join(pdfDir, `temp_${Date.now()}_${pdfFileName}`);
 
   await page.setContent(htmlContent, { waitUntil: "networkidle0" });
 
   await page.pdf({
-    path: pdfFilePath,
+    path: tempPdfFilePath,
     format: "A5",
     landscape: true,
     printBackground: true,
     margin: { top: "0", right: "0", bottom: "0", left: "0" },
+  });
+
+  // Renomeia o arquivo temporário para o nome final
+  await new Promise((resolve, reject) => {
+    fs.rename(tempPdfFilePath, pdfFilePath, (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
   });
 
   await browser.close();
@@ -306,7 +334,7 @@ export async function createBalaustreFromTemplate(data, masonicSessionId, sessio
     caminhoPdfLocal: pdfResult.pdfPath,
     dadosFormulario: data,
     MasonicSessionId: masonicSessionId,
-    status: 'Rascunho',
+    status: 'Minuta',
     assinaturas: {},
   });
 
@@ -370,16 +398,17 @@ export async function regenerateEditalPdf(editalData, signerName) {
 
   const logoBase64 = imageToBase64("assets/images/logoJPJ_.png");
 
-  const buildSignatureBlock = (name, role) => {
+  const buildSignatureBlock = (name, role, creationDate) => {
     if (name) {
       return `
-        <div class="signature-seal">
+        <div class="signature-seal" style="margin: 0 auto; text-align: center;">
           <div class="seal-content">
-            <div class="seal-logo"><img src="${logoBase64}" alt="Logo"></div>
+            <div class="seal-logo"><img src="${logoBase64}" alt="Logo" style="display: block; margin: 0 auto;"></div>
             <div class="seal-text">
-              <div class="signer-name">${name}</div>
-              <div class="signer-role">${role}</div>
-              <div class="signer-timestamp">${new Date().toLocaleString("pt-BR")}</div>
+              <p style="margin-bottom: 2px;">Assinado eletrônicamente por:</p>
+              <p style="margin-bottom: 2px;">${name}</p>
+              <p style="margin-bottom: 2px;">${role}</p>
+              <p style="margin-top: 2px;">na data de ${creationDate}</p>
             </div>
           </div>
         </div>`;
@@ -394,8 +423,9 @@ export async function regenerateEditalPdf(editalData, signerName) {
     }
   };
 
-  templateData.chancelerSignatureBlock = buildSignatureBlock(signerName, "Chanceler");
-  templateData.veneravelmestreSignatureBlock = buildSignatureBlock(null, "Venerável Mestre"); // Assuming Venerável Mestre does not sign automatically
+  const editalCreationDate = new Date().toLocaleDateString("pt-BR"); // Get current date for edital creation
+  templateData.chancelerSignatureBlock = buildSignatureBlock(signerName, "Chanceler", editalCreationDate);
+  templateData.veneravelmestreSignatureBlock = buildSignatureBlock(null, "Venerável Mestre", editalCreationDate); // Assuming Venerável Mestre does not sign automatically
 
   const pdfResult = await generateEditalPdf(templateData);
 

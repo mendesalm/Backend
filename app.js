@@ -48,7 +48,7 @@ import numberingRoutes from "./routes/numbering.routes.js";
 import corpoMensagemRoutes from "./routes/corpoMensagem.routes.js";
 
 // Importa o agendador de tarefas
-import { startScheduler } from "./scheduler.js";
+import { startScheduler, atualizarStatusSessoes } from "./scheduler.js";
 
 // Configurar __dirname para ES Modules
 const __filename = fileURLToPath(import.meta.url);
@@ -83,6 +83,9 @@ const startServer = async () => {
 
     await initModels();
     console.log("Modelos Sequelize inicializados e prontos.");
+
+    // Atualiza o status das sessões no início do servidor
+    await atualizarStatusSessoes();
 
     // Inicia o agendador de tarefas APÓS os modelos estarem prontos
     startScheduler();

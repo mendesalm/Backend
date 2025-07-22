@@ -6,7 +6,7 @@ import * as notificationService from "./services/notification.service.js";
 /**
  * Atualiza o status de sessões passadas de 'Agendada' para 'Realizada'.
  */
-const atualizarStatusSessoes = async () => {
+export const atualizarStatusSessoes = async () => {
   console.log(
     "[Scheduler] Executando tarefa para atualizar status de sessões..."
   );

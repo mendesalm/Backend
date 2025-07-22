@@ -45,9 +45,9 @@ export default (sequelize, DataTypes) => {
       
       // --- NOVOS CAMPOS ADICIONADOS ---
       status: {
-        type: DataTypes.ENUM('Rascunho', 'Assinado'),
+        type: DataTypes.ENUM('Minuta', 'Aprovado'),
         allowNull: false,
-        defaultValue: 'Rascunho',
+        defaultValue: 'Minuta',
       },
       assinaturas: {
         type: DataTypes.JSON,
