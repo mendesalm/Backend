@@ -565,6 +565,8 @@ export const deleteSession = async (req, res) => {
 
     // --- LÓGICA DE REVERSÃO PRECISA DA ESCALA ---
     // Se a sessão tinha um responsável da escala vinculado e era do tipo Sequencial...
+    console.log(`[deleteSession] session.tipoResponsabilidadeJantar: ${session.tipoResponsabilidadeJantar}`);
+    console.log(`[deleteSession] session.responsabilidadeJantarId: ${session.responsabilidadeJantarId}`);
     if (session.tipoResponsabilidadeJantar === 'Sequencial' && session.responsabilidadeJantarId) {
       const responsavelEntry = await db.ResponsabilidadeJantar.findByPk(
         session.responsabilidadeJantarId,
@@ -572,9 +574,25 @@ export const deleteSession = async (req, res) => {
       );
 
       if (responsavelEntry) {
-        await responsavelEntry.destroy({ transaction });
+        console.log(`[deleteSession] responsavelEntry BEFORE update: ID=${responsavelEntry.id}, ordem=${responsavelEntry.ordem}, sessaoDesignadaId=${responsavelEntry.sessaoDesignadaId}`);
+        const minOrdemResult = await db.ResponsabilidadeJantar.findOne({
+          attributes: [[db.sequelize.fn("min", db.sequelize.col("ordem")), "minOrdem"]],
+          raw: true,
+          transaction,
+        });
+
+        const newOrdem = (minOrdemResult.minOrdem !== null) ? minOrdemResult.minOrdem - 1 : 1;
+        console.log(`[deleteSession] Calculated newOrdem: ${newOrdem} (minOrdemResult: ${minOrdemResult.minOrdem})`);
+
+        await responsavelEntry.update(
+          { sessaoDesignadaId: null, ordem: newOrdem, status: "Ativo" },
+          { transaction }
+        );
         console.log(
-          `Registro de responsabilidade ID: ${session.responsabilidadeJantarId} deletado para reverter a escala.`
+          `[deleteSession] responsavelEntry AFTER update: ID=${responsavelEntry.id}, ordem=${responsavelEntry.ordem}, sessaoDesignadaId=${responsavelEntry.sessaoDesignadaId}`
+        );
+        console.log(
+          `Registro de responsabilidade ID: ${session.responsabilidadeJantarId} retornado ao início da escala com ordem ${newOrdem}.`
         );
       }
     }
@@ -606,7 +624,18 @@ export const deleteSession = async (req, res) => {
     await session.destroy({ transaction });
 
     await transaction.commit();
-    res.status(204).send();
+    let responseMessage = "Sessão deletada com sucesso.";
+    let escalaAtualizada = null;
+
+    if (session.tipoResponsabilidadeJantar === 'Sequencial' && session.responsabilidadeJantarId) {
+      escalaAtualizada = await db.ResponsabilidadeJantar.findAll({
+        where: { status: "Ativo" },
+        order: [["ordem", "ASC"]],
+      });
+      responseMessage = "Sessão deletada e escala de jantar revertida com sucesso.";
+    }
+
+    res.status(200).json({ message: responseMessage, escalaAtualizada });
   } catch (error) {
     await transaction.rollback();
     console.error("Erro em deleteSession:", error);

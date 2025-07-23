@@ -55,6 +55,11 @@ export default (sequelize, DataTypes) => {
         onUpdate: "CASCADE",
         onDelete: "SET NULL",
       },
+      tipoResponsabilidadeJantar: {
+        type: DataTypes.ENUM("Sequencial", "Institucional", "Especial"),
+        allowNull: false,
+        defaultValue: "Sequencial",
+      },
       troncoDeBeneficencia: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
       conjugeResponsavelJantarNome: { type: DataTypes.STRING, allowNull: true },
       caminhoEditalPdf: { type: DataTypes.STRING, allowNull: true },

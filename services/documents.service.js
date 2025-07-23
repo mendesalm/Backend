@@ -1,6 +1,12 @@
 import db from "../models/index.js";
 import { getNextNumber } from "./numbering.service.js";
-import { readFileSync, mkdirSync, existsSync, unlinkSync, writeFileSync } from "fs";
+import {
+  readFileSync,
+  mkdirSync,
+  existsSync,
+  unlinkSync,
+  writeFileSync,
+} from "fs";
 import * as fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -25,7 +31,6 @@ const imageToBase64 = (imgPath) => {
   return `data:${contentType};base64,${imageData.toString("base64")}`;
 };
 
-// Função auxiliar para preparar o conteúdo HTML com dados e fontes
 const prepareHtmlForPdf = (templateName, data) => {
   let templatePath;
   if (templateName === "convite_participacao") {
@@ -46,29 +51,44 @@ const prepareHtmlForPdf = (templateName, data) => {
   }
   let htmlContent = readFileSync(templatePath, "utf8");
 
-  const poppinsRegularBase64 = readFileSync(
-    path.join(__dirname, "..", "assets", "fonts", "Poppins-Regular.ttf")
-  ).toString("base64");
-  const poppinsBoldBase64 = readFileSync(
-    path.join(__dirname, "..", "assets", "fonts", "Poppins-Bold.ttf")
-  ).toString("base64");
-  const openSansRegularBase64 = readFileSync(
-    path.join(__dirname, "..", "assets", "fonts", "OpenSans-Regular.ttf")
-  ).toString("base64");
-  const openSansBoldBase64 = readFileSync(
-    path.join(__dirname, "..", "assets", "fonts", "OpenSans-Bold.ttf")
-  ).toString("base64");
-  const oleoScriptRegularBase64 = readFileSync(
-    path.join(__dirname, "..", "assets", "fonts", "OleoScript-Regular.ttf")
-  ).toString("base64");
-  const oleoScriptBoldBase64 = readFileSync(
-    path.join(__dirname, "..", "assets", "fonts", "OleoScript-Bold.ttf")
-  ).toString("base64");
-  const greatVibesRegularBase64 = readFileSync(
-    path.join(__dirname, "..", "assets", "fonts", "GreatVibes-Regular.ttf")
-  ).toString("base64");
-
-  const fontStyles = `
+  let fontStyles = "";
+  if (templateName === "convite_participacao") {
+    const cinzelDecorativeRegularBase64 = readFileSync(
+      path.join(
+        __dirname,
+        "..",
+        "assets",
+        "fonts",
+        "CinzelDecorative-Regular.ttf"
+      )
+    ).toString("base64");
+    fontStyles = `
+      @font-face { font-family: "CinzelDecorative"; src: url("data:font/truetype;charset=utf-8;base64,${cinzelDecorativeRegularBase64}") format("truetype"); font-weight: normal; font-style: normal; }
+    `;
+    data.conviteImage = imageToBase64("assets/images/convite.png");
+  } else {
+    const poppinsRegularBase64 = readFileSync(
+      path.join(__dirname, "..", "assets", "fonts", "Poppins-Regular.ttf")
+    ).toString("base64");
+    const poppinsBoldBase64 = readFileSync(
+      path.join(__dirname, "..", "assets", "fonts", "Poppins-Bold.ttf")
+    ).toString("base64");
+    const openSansRegularBase64 = readFileSync(
+      path.join(__dirname, "..", "assets", "fonts", "OpenSans-Regular.ttf")
+    ).toString("base64");
+    const openSansBoldBase64 = readFileSync(
+      path.join(__dirname, "..", "assets", "fonts", "OpenSans-Bold.ttf")
+    ).toString("base64");
+    const oleoScriptRegularBase64 = readFileSync(
+      path.join(__dirname, "..", "assets", "fonts", "OleoScript-Regular.ttf")
+    ).toString("base64");
+    const oleoScriptBoldBase64 = readFileSync(
+      path.join(__dirname, "..", "assets", "fonts", "OleoScript-Bold.ttf")
+    ).toString("base64");
+    const greatVibesRegularBase64 = readFileSync(
+      path.join(__dirname, "..", "assets", "fonts", "GreatVibes-Regular.ttf")
+    ).toString("base64");
+    fontStyles = `
       @font-face { font-family: "Poppins"; src: url("data:font/truetype;charset=utf-8;base64,${poppinsRegularBase64}") format("truetype"); font-weight: normal; font-style: normal; }
       @font-face { font-family: "Poppins"; src: url("data:font/truetype;charset=utf-8;base64,${poppinsBoldBase64}") format("truetype"); font-weight: bold; font-style: normal; }
       @font-face { font-family: "Open Sans"; src: url("data:font/truetype;charset=utf-8;base64,${openSansRegularBase64}") format("truetype"); font-weight: normal; font-style: normal; }
@@ -77,6 +97,7 @@ const prepareHtmlForPdf = (templateName, data) => {
       @font-face { font-family: "Oleo Script"; src: url("data:font/truetype;charset=utf-8;base64,${oleoScriptBoldBase64}") format("truetype"); font-weight: bold; font-style: normal; }
       @font-face { font-family: "Great Vibes"; src: url("data:font/truetype;charset=utf-8;base64,${greatVibesRegularBase64}") format("truetype"); font-weight: normal; font-style: normal; }
     `;
+  }
   htmlContent = htmlContent.replace("</style>", `${fontStyles}</style>`);
 
   data.headerImage = imageToBase64("assets/images/logoJPJ_.png");
@@ -118,7 +139,10 @@ async function generateBalaustrePdf(data) {
 
   const pdfFileName = `balaustre_${data.NumeroBalaustre}_${data.formattedDateForFilename}.pdf`;
   const pdfFilePath = path.join(pdfDir, pdfFileName);
-  const tempPdfFilePath = path.join(pdfDir, `temp_${Date.now()}_${pdfFileName}`);
+  const tempPdfFilePath = path.join(
+    pdfDir,
+    `temp_${Date.now()}_${pdfFileName}`
+  );
 
   await page.setContent(htmlContent, { waitUntil: "networkidle0" });
 
@@ -168,7 +192,10 @@ async function generateEditalPdf(data) {
 
   const pdfFileName = `edital_${data.NumeroBalaustre}_${data.formattedDateForFilename}.pdf`;
   const pdfFilePath = path.join(pdfDir, pdfFileName);
-  const tempPdfFilePath = path.join(pdfDir, `temp_${Date.now()}_${pdfFileName}`);
+  const tempPdfFilePath = path.join(
+    pdfDir,
+    `temp_${Date.now()}_${pdfFileName}`
+  );
 
   await page.setContent(htmlContent, { waitUntil: "networkidle0" });
 
@@ -245,14 +272,18 @@ async function generateConvitePdf(data) {
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
   });
   const page = await browser.newPage();
-  const htmlContent = prepareHtmlForPdf("convite_participacao", data);
+  const processedData = prepareDataForConvite(data);
+  const htmlContent = prepareHtmlForPdf("convite_participacao", processedData);
 
   const pdfDir = path.join(process.cwd(), "uploads", "convites");
   if (!existsSync(pdfDir)) mkdirSync(pdfDir, { recursive: true });
 
   const pdfFileName = `convite_${data.formattedDateForFilename}.pdf`;
   const pdfFilePath = path.join(pdfDir, pdfFileName);
-  const tempPdfFilePath = path.join(pdfDir, `temp_${Date.now()}_${pdfFileName}`);
+  const tempPdfFilePath = path.join(
+    pdfDir,
+    `temp_${Date.now()}_${pdfFileName}`
+  );
 
   await page.setContent(htmlContent, { waitUntil: "networkidle0" });
 
@@ -261,7 +292,7 @@ async function generateConvitePdf(data) {
     format: "A5",
     landscape: true,
     printBackground: true,
-    margin: { top: "0", right: "0", bottom: "0", left: "0" },
+    margin: { top: "32mm", right: "35mm", bottom: "32mm", left: "35mm" },
   });
 
   // Renomeia o arquivo temporário para o nome final
@@ -281,7 +312,11 @@ async function generateConvitePdf(data) {
 
 // --- Funções Públicas de Orquestração ---
 
-export async function createBalaustreFromTemplate(data, masonicSessionId, sessionNumber) {
+export async function createBalaustreFromTemplate(
+  data,
+  masonicSessionId,
+  sessionNumber
+) {
   data.NumeroBalaustre = sessionNumber;
 
   const cargoPlaceholderMapping = {
@@ -334,7 +369,7 @@ export async function createBalaustreFromTemplate(data, masonicSessionId, sessio
     caminhoPdfLocal: pdfResult.pdfPath,
     dadosFormulario: data,
     MasonicSessionId: masonicSessionId,
-    status: 'Minuta',
+    status: "Minuta",
     assinaturas: {},
   });
 
@@ -342,7 +377,9 @@ export async function createBalaustreFromTemplate(data, masonicSessionId, sessio
 }
 
 export async function regenerateBalaustrePdf(balaustreId, data) {
-  const balaustre = balaustreId ? await db.Balaustre.findByPk(balaustreId) : null;
+  const balaustre = balaustreId
+    ? await db.Balaustre.findByPk(balaustreId)
+    : null;
   const templateData = data || balaustre.dadosFormulario;
 
   const logoBase64 = imageToBase64("assets/images/logoJPJ_.png");
@@ -372,9 +409,18 @@ export async function regenerateBalaustrePdf(balaustreId, data) {
   };
 
   const assinaturas = balaustre ? balaustre.assinaturas : {};
-  templateData.secretarioSignatureBlock = buildSignatureBlock(assinaturas.secretario, "Secretário");
-  templateData.oradorSignatureBlock = buildSignatureBlock(assinaturas.orador, "Orador");
-  templateData.veneravelmestreSignatureBlock = buildSignatureBlock(assinaturas.veneravelmestre, "Venerável Mestre");
+  templateData.secretarioSignatureBlock = buildSignatureBlock(
+    assinaturas.secretario,
+    "Secretário"
+  );
+  templateData.oradorSignatureBlock = buildSignatureBlock(
+    assinaturas.orador,
+    "Orador"
+  );
+  templateData.veneravelmestreSignatureBlock = buildSignatureBlock(
+    assinaturas.veneravelmestre,
+    "Venerável Mestre"
+  );
 
   const processedData = prepareDataForBalaustre(templateData);
   const pdfResult = await generateBalaustrePdf(processedData);
@@ -386,7 +432,11 @@ export async function regenerateBalaustrePdf(balaustreId, data) {
   return pdfResult;
 }
 
-export async function createEditalFromTemplate(editalData, signerName, sessionNumber) {
+export async function createEditalFromTemplate(
+  editalData,
+  signerName,
+  sessionNumber
+) {
   editalData.NumeroBalaustre = sessionNumber;
   const pdfResult = await regenerateEditalPdf(editalData, signerName);
 
@@ -424,8 +474,16 @@ export async function regenerateEditalPdf(editalData, signerName) {
   };
 
   const editalCreationDate = new Date().toLocaleDateString("pt-BR"); // Get current date for edital creation
-  templateData.chancelerSignatureBlock = buildSignatureBlock(signerName, "Chanceler", editalCreationDate);
-  templateData.veneravelmestreSignatureBlock = buildSignatureBlock(null, "Venerável Mestre", editalCreationDate); // Assuming Venerável Mestre does not sign automatically
+  templateData.chancelerSignatureBlock = buildSignatureBlock(
+    signerName,
+    "Chanceler",
+    editalCreationDate
+  );
+  templateData.veneravelmestreSignatureBlock = buildSignatureBlock(
+    null,
+    "Venerável Mestre",
+    editalCreationDate
+  ); // Assuming Venerável Mestre does not sign automatically
 
   const pdfResult = await generateEditalPdf(templateData);
 
@@ -445,6 +503,14 @@ export async function createConviteFromTemplate(conviteData) {
   const pdfResult = await generateConvitePdf(conviteData);
   return pdfResult;
 }
+
+const prepareDataForConvite = (d) => {
+  const processed = { ...d };
+  if (d.ClasseSessao) {
+    processed.ClasseSessao = String(d.ClasseSessao);
+  }
+  return processed;
+};
 
 const prepareDataForBalaustre = (d) => {
   const processed = { ...d };
@@ -512,6 +578,7 @@ const prepareDataForBalaustre = (d) => {
   }
   return processed;
 };
+
 
 export async function deleteLocalFile(filePath) {
   if (!filePath) return;

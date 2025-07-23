@@ -11,6 +11,8 @@ export const avancarEscalaSequencialEObterResponsavel = async (transaction) => {
   try {
     const { ResponsabilidadeJantar, LodgeMember, FamilyMember, sequelize } = db;
 
+    console.log("[avancarEscalaSequencialEObterResponsavel] --- START ---");
+
     const proximoNaEscala = await ResponsabilidadeJantar.findOne({
       where: { status: "Ativo", sessaoDesignadaId: null },
       order: [["ordem", "ASC"]],
@@ -22,21 +24,24 @@ export const avancarEscalaSequencialEObterResponsavel = async (transaction) => {
       return null;
     }
 
+    console.log(`[avancarEscalaSequencialEObterResponsavel] Selected proximoNaEscala: ID=${proximoNaEscala.id}, ordem=${proximoNaEscala.ordem}, sessaoDesignadaId=${proximoNaEscala.sessaoDesignadaId}`);
+
     const responsavelId = proximoNaEscala.lodgeMemberId;
     const responsabilidadeJantarId = proximoNaEscala.id;
 
     const maxOrdemResult = await ResponsabilidadeJantar.findOne({
       attributes: [[sequelize.fn("max", sequelize.col("ordem")), "maxOrdem"]],
-      where: { sessaoDesignadaId: null },
       raw: true,
       transaction,
     });
     const novaOrdem = (maxOrdemResult.maxOrdem || 0) + 1;
+    console.log(`[avancarEscalaSequencialEObterResponsavel] Calculated novaOrdem: ${novaOrdem} (maxOrdemResult: ${maxOrdemResult.maxOrdem})`);
 
     await ResponsabilidadeJantar.update(
-      { ordem: novaOrdem },
+      { ordem: novaOrdem, sessaoDesignadaId: proximoNaEscala.sessaoDesignadaId }, // Ensure sessaoDesignadaId is updated here if needed
       { where: { id: responsabilidadeJantarId }, transaction }
     );
+    console.log(`[avancarEscalaSequencialEObterResponsavel] Updated responsabilidadeJantar: ID=${responsabilidadeJantarId}, new ordem=${novaOrdem}`);
 
     const membroResponsavel = await LodgeMember.findByPk(responsavelId, {
       include: [
@@ -54,6 +59,7 @@ export const avancarEscalaSequencialEObterResponsavel = async (transaction) => {
     console.log(
       `Escala avançada para o membro: ${membroResponsavel.NomeCompleto}. ID da responsabilidade: ${responsabilidadeJantarId}`
     );
+    console.log("[avancarEscalaSequencialEObterResponsavel] --- END ---");
 
     // Retorna tanto os dados do membro quanto o ID do registro da escala modificado
     return { membroResponsavel, responsabilidadeJantarId };
