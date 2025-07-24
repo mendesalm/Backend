@@ -4,7 +4,8 @@ export default (sequelize, DataTypes) => {
     "ResponsabilidadeJantar",
     {
       id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
-      ordem: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+      foiResponsavelNoCiclo: { type: DataTypes.BOOLEAN, defaultValue: false },
+      ordem: { type: DataTypes.INTEGER, allowNull: true },
       status: {
         type: DataTypes.ENUM("Ativo", "Pausado", "Cumprido"),
         allowNull: false,

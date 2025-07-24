@@ -572,27 +572,12 @@ export const deleteSession = async (req, res) => {
         session.responsabilidadeJantarId,
         { transaction }
       );
-
       if (responsavelEntry) {
-        console.log(`[deleteSession] responsavelEntry BEFORE update: ID=${responsavelEntry.id}, ordem=${responsavelEntry.ordem}, sessaoDesignadaId=${responsavelEntry.sessaoDesignadaId}`);
-        const minOrdemResult = await db.ResponsabilidadeJantar.findOne({
-          attributes: [[db.sequelize.fn("min", db.sequelize.col("ordem")), "minOrdem"]],
-          raw: true,
-          transaction,
-        });
-
-        const newOrdem = (minOrdemResult.minOrdem !== null) ? minOrdemResult.minOrdem - 1 : 1;
-        console.log(`[deleteSession] Calculated newOrdem: ${newOrdem} (minOrdemResult: ${minOrdemResult.minOrdem})`);
-
+        // Apenas volta o status para "não foi responsável", o membro
+        // estará automaticamente disponível na sua posição alfabética correta.
         await responsavelEntry.update(
-          { sessaoDesignadaId: null, ordem: newOrdem, status: "Ativo" },
+          { sessaoDesignadaId: null, foiResponsavelNoCiclo: false },
           { transaction }
-        );
-        console.log(
-          `[deleteSession] responsavelEntry AFTER update: ID=${responsavelEntry.id}, ordem=${responsavelEntry.ordem}, sessaoDesignadaId=${responsavelEntry.sessaoDesignadaId}`
-        );
-        console.log(
-          `Registro de responsabilidade ID: ${session.responsabilidadeJantarId} retornado ao início da escala com ordem ${newOrdem}.`
         );
       }
     }

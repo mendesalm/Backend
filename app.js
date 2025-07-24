@@ -46,6 +46,7 @@ import solicitacaoRoutes from "./routes/solicitacao.routes.js";
 import lojaRoutes from "./routes/loja.routes.js";
 import numberingRoutes from "./routes/numbering.routes.js";
 import corpoMensagemRoutes from "./routes/corpoMensagem.routes.js";
+import responsabilidadeJantarRoutes from "./routes/responsabilidadeJantar.routes.js";
 
 // Importa o agendador de tarefas
 import { startScheduler, atualizarStatusSessoes } from "./scheduler.js";
@@ -130,6 +131,7 @@ const startServer = async () => {
     app.use("/api/lojas", lojaRoutes);
     app.use("/api/mensagens", corpoMensagemRoutes);
     app.use("/api/numbering", numberingRoutes);
+    app.use("/api/responsabilidades-jantar", responsabilidadeJantarRoutes);
     
 
     // Iniciar o servidor
