@@ -100,9 +100,9 @@ const prepareHtmlForPdf = (templateName, data) => {
   }
   htmlContent = htmlContent.replace("</style>", `${fontStyles}</style>`);
 
-  data.headerImage = imageToBase64("assets/images/logoJPJ_.png");
-  data.footerImage = imageToBase64("assets/images/logoRB_.png");
-  data.backgroundImage = imageToBase64("assets/images/cartao_fundo.svg");
+  data.header_image = imageToBase64("assets/images/logoJPJ_.png");
+  data.footer_image = imageToBase64("assets/images/logoRB_.png");
+  data.background_image = imageToBase64("assets/images/cartao_fundo.svg");
 
   Object.entries(data).forEach(([key, value]) => {
     const regex = new RegExp(`{{2,3}${key}}{2,3}`, "g");
@@ -137,7 +137,7 @@ async function generateBalaustrePdf(data) {
   const pdfDir = path.join(process.cwd(), "uploads", "balaustres");
   if (!existsSync(pdfDir)) mkdirSync(pdfDir, { recursive: true });
 
-  const pdfFileName = `balaustre_${data.NumeroBalaustre}_${data.formattedDateForFilename}.pdf`;
+  const pdfFileName = `balaustre_${data.numero_balaustre}_${data.formattedDateForFilename}.pdf`;
   const pdfFilePath = path.join(pdfDir, pdfFileName);
   const tempPdfFilePath = path.join(
     pdfDir,
@@ -190,7 +190,7 @@ async function generateEditalPdf(data) {
   const pdfDir = path.join(process.cwd(), "uploads", "editais");
   if (!existsSync(pdfDir)) mkdirSync(pdfDir, { recursive: true });
 
-  const pdfFileName = `edital_${data.NumeroBalaustre}_${data.formattedDateForFilename}.pdf`;
+  const pdfFileName = `edital_${data.numero_balaustre}_${data.formattedDateForFilename}.pdf`;
   const pdfFilePath = path.join(pdfDir, pdfFileName);
   const tempPdfFilePath = path.join(
     pdfDir,
@@ -243,7 +243,7 @@ async function generateCartaoPdf(data) {
   const pdfDir = path.join(process.cwd(), "uploads", "cartoes_aniversario");
   if (!existsSync(pdfDir)) mkdirSync(pdfDir, { recursive: true });
 
-  const title = `Cartão de Aniversário - ${data.NOME_ANIVERSARIANTE}`;
+  const title = `Cartão de Aniversário - ${data.nome_aniversariante}`;
   const pdfFileName = `${sanitizeTitleForFilename(title)}.pdf`; // Timestamp removido
   const pdfFilePath = path.join(pdfDir, pdfFileName);
 
@@ -317,16 +317,16 @@ export async function createBalaustreFromTemplate(
   masonicSessionId,
   sessionNumber
 ) {
-  data.NumeroBalaustre = sessionNumber;
+  data.numero_balaustre = sessionNumber;
 
   const cargoPlaceholderMapping = {
-    "Venerável Mestre": "Veneravel",
-    "Primeiro Vigilante": "PrimeiroVigilante",
-    "Segundo Vigilante": "SegundoVigilante",
-    Orador: "Orador",
-    Secretário: "Secretario",
-    Tesoureiro: "Tesoureiro",
-    Chanceler: "Chanceler",
+    "Venerável Mestre": "veneravel",
+    "Primeiro Vigilante": "primeiro_vigilante",
+    "Segundo Vigilante": "segundo_vigilante",
+    Orador: "orador",
+    Secretário: "secretario",
+    Tesoureiro: "tesoureiro",
+    Chanceler: "chanceler",
   };
 
   if (masonicSessionId) {
@@ -362,7 +362,7 @@ export async function createBalaustreFromTemplate(
 
   // Crie a entrada do balaústre no banco de dados
   const createdBalaustre = await db.Balaustre.create({
-    numero: processedData.NumeroBalaustre,
+    numero: processedData.numero_balaustre,
     ano: new Date().getFullYear(), // Ou extraia de 'data' se disponível
     path: pdfResult.pdfPath,
     googleDocId: null,
@@ -409,16 +409,16 @@ export async function regenerateBalaustrePdf(balaustreId, data) {
   };
 
   const assinaturas = balaustre ? balaustre.assinaturas : {};
-  templateData.secretarioSignatureBlock = buildSignatureBlock(
+  templateData.secretario_signature_block = buildSignatureBlock(
     assinaturas.secretario,
     "Secretário"
   );
-  templateData.oradorSignatureBlock = buildSignatureBlock(
+  templateData.orador_signature_block = buildSignatureBlock(
     assinaturas.orador,
     "Orador"
   );
-  templateData.veneravelmestreSignatureBlock = buildSignatureBlock(
-    assinaturas.veneravelmestre,
+  templateData.veneravel_mestre_signature_block = buildSignatureBlock(
+    assinaturas.veneravel_mestre,
     "Venerável Mestre"
   );
 
@@ -437,7 +437,7 @@ export async function createEditalFromTemplate(
   signerName,
   sessionNumber
 ) {
-  editalData.NumeroBalaustre = sessionNumber;
+  editalData.numero_balaustre = sessionNumber;
   const pdfResult = await regenerateEditalPdf(editalData, signerName);
 
   return pdfResult;
@@ -474,12 +474,12 @@ export async function regenerateEditalPdf(editalData, signerName) {
   };
 
   const editalCreationDate = new Date().toLocaleDateString("pt-BR"); // Get current date for edital creation
-  templateData.chancelerSignatureBlock = buildSignatureBlock(
+  templateData.chanceler_signature_block = buildSignatureBlock(
     signerName,
     "Chanceler",
     editalCreationDate
   );
-  templateData.veneravelmestreSignatureBlock = buildSignatureBlock(
+  templateData.veneravel_mestre_signature_block = buildSignatureBlock(
     null,
     "Venerável Mestre",
     editalCreationDate
@@ -506,8 +506,8 @@ export async function createConviteFromTemplate(conviteData) {
 
 const prepareDataForConvite = (d) => {
   const processed = { ...d };
-  if (d.ClasseSessao) {
-    processed.ClasseSessao = String(d.ClasseSessao);
+  if (d.classe_sessao) {
+    processed.classe_sessao = String(d.classe_sessao);
   }
   return processed;
 };
@@ -515,33 +515,33 @@ const prepareDataForConvite = (d) => {
 const prepareDataForBalaustre = (d) => {
   const processed = { ...d };
   const allTemplateFields = [
-    "NumeroBalaustre",
-    "ClasseSessao_Titulo",
-    "HoraInicioSessao",
-    "DiaSessao",
-    "ClasseSessao_Corpo",
-    "NumeroIrmaosQuadro",
-    "NumeroVisitantes",
-    "Veneravel",
-    "PrimeiroVigilante",
-    "SegundoVigilante",
-    "Orador",
-    "Secretario",
-    "Tesoureiro",
-    "Chanceler",
-    "DataSessaoAnterior",
-    "EmendasBalaustreAnterior",
-    "ExpedienteRecebido",
-    "ExpedienteExpedido",
-    "SacoProposta",
-    "OrdemDia",
-    "Escrutinio",
-    "TempoInstrucao",
-    "TroncoBeneficiencia",
-    "Palavra",
-    "HoraEncerramento",
-    "DataAssinatura",
-    "Emendas",
+    "numero_balaustre",
+    "classe_sessao_titulo",
+    "hora_inicio_sessao",
+    "dia_sessao",
+    "classe_sessao_corpo",
+    "numero_irmaos_quadro",
+    "numero_visitantes",
+    "veneravel",
+    "primeiro_vigilante",
+    "segundo_vigilante",
+    "orador",
+    "secretario",
+    "tesoureiro",
+    "chanceler",
+    "data_sessao_anterior",
+    "emendas_balaustre_anterior",
+    "expediente_recebido",
+    "expediente_expedido",
+    "saco_proposta",
+    "ordem_dia",
+    "escrutinio",
+    "tempo_instrucao",
+    "tronco_beneficencia",
+    "palavra",
+    "hora_encerramento",
+    "data_assinatura",
+    "emendas",
   ];
   allTemplateFields.forEach((field) => {
     if (!(field in processed)) {
@@ -549,36 +549,37 @@ const prepareDataForBalaustre = (d) => {
     }
   });
   const uppercaseFields = [
-    "Veneravel",
-    "PrimeiroVigilante",
-    "SegundoVigilante",
-    "Orador",
-    "Secretario",
-    "Tesoureiro",
-    "Chanceler",
+    "veneravel",
+    "primeiro_vigilante",
+    "segundo_vigilante",
+    "orador",
+    "secretario",
+    "tesoureiro",
+    "chanceler",
   ];
   uppercaseFields.forEach((field) => {
     if (processed[field]) {
       processed[field] = String(processed[field]).toUpperCase();
     }
   });
-  if (d.ClasseSessao) {
-    processed.ClasseSessao_Titulo = String(d.ClasseSessao).toUpperCase();
-    processed.ClasseSessao_Corpo = String(d.ClasseSessao).toLowerCase();
-    delete processed.ClasseSessao;
+  if (d.classe_sessao) {
+    processed.classe_sessao_titulo = String(d.classe_sessao).toUpperCase();
+    processed.classe_sessao_corpo = String(d.classe_sessao).toLowerCase();
+    delete processed.classe_sessao;
   } else {
-    if (d.ClasseSessao_Titulo) {
-      processed.ClasseSessao_Titulo = String(
-        d.ClasseSessao_Titulo
+    if (d.classe_sessao_titulo) {
+      processed.classe_sessao_titulo = String(
+        d.classe_sessao_titulo
       ).toUpperCase();
     }
-    if (d.ClasseSessao_Corpo) {
-      processed.ClasseSessao_Corpo = String(d.ClasseSessao_Corpo).toLowerCase();
+    if (d.classe_sessao_corpo) {
+      processed.classe_sessao_corpo = String(
+        d.classe_sessao_corpo
+      ).toLowerCase();
     }
   }
   return processed;
 };
-
 
 export async function deleteLocalFile(filePath) {
   if (!filePath) return;

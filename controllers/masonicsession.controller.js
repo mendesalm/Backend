@@ -119,10 +119,14 @@ export const getAllSessions = async (req, res) => {
         }
 
         // Oculta o link do balaústre se não estiver Aprovado
-        if (sessaoJSON.balaustre && sessaoJSON.balaustre.status === 'Aprovado') {
-            sessaoJSON.balaustre.caminhoPdfLocal = sessaoJSON.balaustre.caminhoPdfLocal;
+        if (
+          sessaoJSON.balaustre &&
+          sessaoJSON.balaustre.status === "Aprovado"
+        ) {
+          sessaoJSON.balaustre.caminhoPdfLocal =
+            sessaoJSON.balaustre.caminhoPdfLocal;
         } else if (sessaoJSON.balaustre) {
-            sessaoJSON.balaustre.caminhoPdfLocal = null;
+          sessaoJSON.balaustre.caminhoPdfLocal = null;
         }
 
         // Mantém a estrutura para edital e convite
@@ -232,7 +236,31 @@ export const getSessionById = async (req, res) => {
  */
 export const createSession = async (req, res) => {
   // O validador já converteu a string para um objeto Date UTC.
-  let { dataSessao, tipoSessao, subtipoSessao, tipoResponsabilidadeJantar = 'Sequencial', ...restOfBody } = req.body;
+  let {
+    dataSessao,
+    tipoSessao,
+    subtipoSessao,
+    tipoResponsabilidadeJantar = "Sequencial",
+    objetivoSessao,
+    ...restOfBody
+  } = req.body;
+
+  // Validação e definição de objetivoSessao
+  if (
+    tipoSessao === "Especial" &&
+    (subtipoSessao === "Administrativa" || subtipoSessao === "Eleitoral")
+  ) {
+    if (!objetivoSessao) {
+      return res
+        .status(400)
+        .json({
+          message:
+            "Para sessões Especiais Administrativas ou Eleitorais, o objetivo da sessão é obrigatório.",
+        });
+    }
+  } else {
+    objetivoSessao = objetivoSessao || "Sessão Regular";
+  }
 
   // Ensure dataSessao is a Date object
   if (!(dataSessao instanceof Date)) {
@@ -246,12 +274,14 @@ export const createSession = async (req, res) => {
     let responsabilidadeJantarId = null;
 
     // A lógica da escala só é executada se a responsabilidade for 'Sequencial'
-    if (tipoResponsabilidadeJantar === 'Sequencial') {
-        const resultadoEscala = await avancarEscalaSequencialEObterResponsavel(transaction);
-        if (resultadoEscala) {
-            responsavelJantar = resultadoEscala.membroResponsavel;
-            responsabilidadeJantarId = resultadoEscala.responsabilidadeJantarId;
-        }
+    if (tipoResponsabilidadeJantar === "Sequencial") {
+      const resultadoEscala = await avancarEscalaSequencialEObterResponsavel(
+        transaction
+      );
+      if (resultadoEscala) {
+        responsavelJantar = resultadoEscala.membroResponsavel;
+        responsabilidadeJantarId = resultadoEscala.responsabilidadeJantarId;
+      }
     }
     // Para 'Institucional' ou 'Especial', os responsáveis são nulos por padrão
 
@@ -365,55 +395,47 @@ export const createSession = async (req, res) => {
     }
 
     const dadosParaTemplate = {
-      NumeroBalaustre: novaSessao.numero,
-      ClasseSessao: classeSessaoFormatada,
-      DiaSessao: format(
-        dataSessao,
-        "dd 'de' MMMM 'de' yyyy",
-        { locale: ptBR }
-      ),
-      DataAssinatura: format(
-        new Date(),
-        "dd 'de' MMMM 'de' yyyy",
-        { locale: ptBR }
-      ),
-      data_sessao_extenso: format(
-        dataSessao,
-        "dd 'de' MMMM 'de' yyyy",
-        { locale: ptBR }
-      ),
+      numero_balaustre: novaSessao.numero,
+      classe_sessao: classeSessaoFormatada,
+      dia_sessao: format(dataSessao, "dd 'de' MMMM 'de' yyyy", {
+        locale: ptBR,
+      }),
+      data_assinatura: format(new Date(), "dd 'de' MMMM 'de' yyyy", {
+        locale: ptBR,
+      }),
+      data_sessao_extenso: format(dataSessao, "dd 'de' MMMM 'de' yyyy", {
+        locale: ptBR,
+      }),
       dia_semana: format(dataSessao, "EEEE", {
         locale: ptBR,
       }),
-      formattedDateForFilename: format(
-        dataSessao,
-        "ddMMyy"
-      ),
-      ResponsavelJantar: nomeFinalResponsavel,
+      formattedDateForFilename: format(dataSessao, "ddMMyy"),
+      responsavel_jantar: nomeFinalResponsavel,
       hora_sessao: "19h30",
-      Veneravel: veneravel,
-      PrimeiroVigilante: primeiroVigilante,
-      SegundoVigilante: segundoVigilante,
-      Orador: orador,
-      Secretario: secretario,
-      Tesoureiro: tesoureiro,
-      Chanceler: chanceler,
-      NumeroIrmaosQuadro: numeroIrmaosQuadro,
-      NumeroVisitantes: numeroVisitantes,
-      DataSessaoAnterior: "",
-      EmendasBalaustreAnterior: "",
-      ExpedienteRecebido: "",
-      ExpedienteExpedido: "",
-      SacoProposta: "",
-      OrdemDia: "",
-      Escrutinio: "",
-      TempoInstrucao: "",
-      TroncoBeneficiencia: "",
-      Palavra: "",
-      Emendas: "",
+      veneravel: veneravel,
+      primeiro_vigilante: primeiroVigilante,
+      segundo_vigilante: segundoVigilante,
+      orador: orador,
+      secretario: secretario,
+      tesoureiro: tesoureiro,
+      chanceler: chanceler,
+      numero_irmaos_quadro: numeroIrmaosQuadro,
+      numero_visitantes: numeroVisitantes,
+      data_sessao_anterior: "",
+      emendas_balaustre_anterior: "",
+      expediente_recebido: "",
+      expediente_expedido: "",
+      saco_proposta: "",
+      ordem_dia: "",
+      escrutinio: "",
+      tempo_instrucao: "",
+      tronco_beneficencia: "",
+      palavra: "",
+      emendas: "",
       // Convite specific placeholders
       tipo_sessao: tipoSessao,
       grau_sessao: subtipoSessao,
+      OBJETIVO: objetivoSessao || "",
     };
 
     console.log("[createSession] dadosParaTemplate:", dadosParaTemplate);
@@ -423,7 +445,10 @@ export const createSession = async (req, res) => {
       novaSessao.id,
       novaSessao.numero
     );
-    console.log("[createSession] balaustreInstance (after creation):", balaustreInstance);
+    console.log(
+      "[createSession] balaustreInstance (after creation):",
+      balaustreInstance
+    );
 
     const edital = await createEditalFromTemplate(
       dadosParaTemplate,
@@ -437,7 +462,10 @@ export const createSession = async (req, res) => {
 
     // Regenerate the PDF to include initial signature lines
     const balaustrePdfPath = balaustreInstance.caminhoPdfLocal; // Use the path already generated by createBalaustreFromTemplate
-    console.log("[createSession] balaustrePdfPath (from instance):", balaustrePdfPath);
+    console.log(
+      "[createSession] balaustrePdfPath (from instance):",
+      balaustrePdfPath
+    );
 
     const updateResult = await db.MasonicSession.update(
       {
@@ -462,7 +490,10 @@ export const createSession = async (req, res) => {
         },
       ],
     });
-    console.log("[createSession] sessaoCompleta (before response):", sessaoCompleta);
+    console.log(
+      "[createSession] sessaoCompleta (before response):",
+      sessaoCompleta
+    );
     res.status(201).json(sessaoCompleta);
   } catch (error) {
     console.error(
@@ -483,7 +514,38 @@ export const createSession = async (req, res) => {
 export const updateSession = async (req, res) => {
   const { id } = req.params;
   // O validador já tratou a conversão de dataSessao, se presente.
-  const { dataSessao, ...outrosCampos } = req.body;
+  const {
+    dataSessao,
+    tipoSessao,
+    subtipoSessao,
+    objetivoSessao,
+    ...outrosCampos
+  } = req.body;
+
+  // Validação e definição de objetivoSessao para atualização
+  let finalObjetivoSessao = objetivoSessao;
+  if (
+    tipoSessao === "Especial" &&
+    (subtipoSessao === "Administrativa" || subtipoSessao === "Eleitoral")
+  ) {
+    if (!finalObjetivoSessao) {
+      return res
+        .status(400)
+        .json({
+          message:
+            "Para sessões Especiais Administrativas ou Eleitorais, o objetivo da sessão é obrigatório.",
+        });
+    }
+  } else if (finalObjetivoSessao === undefined) {
+    // Se objetivoSessao não foi enviado no body, mantém o valor existente ou define como 'Sessão Regular' se for nulo
+    finalObjetivoSessao = session.objetivoSessao || "Sessão Regular";
+  } else if (finalObjetivoSessao === null) {
+    // Se foi enviado explicitamente como null, mantém null
+    finalObjetivoSessao = null;
+  } else {
+    // Se foi enviado com um valor, usa esse valor
+    finalObjetivoSessao = finalObjetivoSessao || "Sessão Regular";
+  }
 
   try {
     const session = await db.MasonicSession.findByPk(id);
@@ -491,7 +553,7 @@ export const updateSession = async (req, res) => {
       return res.status(404).json({ message: "Sessão não encontrada." });
     }
 
-    const updateData = { ...outrosCampos };
+    const updateData = { ...outrosCampos, objetivoSessao: finalObjetivoSessao };
     if (dataSessao) {
       updateData.dataSessao = dataSessao; // dataSessao já é um objeto Date UTC
     }
@@ -565,9 +627,16 @@ export const deleteSession = async (req, res) => {
 
     // --- LÓGICA DE REVERSÃO PRECISA DA ESCALA ---
     // Se a sessão tinha um responsável da escala vinculado e era do tipo Sequencial...
-    console.log(`[deleteSession] session.tipoResponsabilidadeJantar: ${session.tipoResponsabilidadeJantar}`);
-    console.log(`[deleteSession] session.responsabilidadeJantarId: ${session.responsabilidadeJantarId}`);
-    if (session.tipoResponsabilidadeJantar === 'Sequencial' && session.responsabilidadeJantarId) {
+    console.log(
+      `[deleteSession] session.tipoResponsabilidadeJantar: ${session.tipoResponsabilidadeJantar}`
+    );
+    console.log(
+      `[deleteSession] session.responsabilidadeJantarId: ${session.responsabilidadeJantarId}`
+    );
+    if (
+      session.tipoResponsabilidadeJantar === "Sequencial" &&
+      session.responsabilidadeJantarId
+    ) {
       const responsavelEntry = await db.ResponsabilidadeJantar.findByPk(
         session.responsabilidadeJantarId,
         { transaction }
@@ -599,7 +668,10 @@ export const deleteSession = async (req, res) => {
       try {
         await deleteLocalFile(filePath);
       } catch (err) {
-        console.error(`Falha crítica ao deletar arquivo local ${filePath}:`, err);
+        console.error(
+          `Falha crítica ao deletar arquivo local ${filePath}:`,
+          err
+        );
         // Re-throw to ensure transaction rollback if file deletion fails
         throw new Error(`Falha ao deletar arquivo associado: ${filePath}`);
       }
@@ -612,12 +684,16 @@ export const deleteSession = async (req, res) => {
     let responseMessage = "Sessão deletada com sucesso.";
     let escalaAtualizada = null;
 
-    if (session.tipoResponsabilidadeJantar === 'Sequencial' && session.responsabilidadeJantarId) {
+    if (
+      session.tipoResponsabilidadeJantar === "Sequencial" &&
+      session.responsabilidadeJantarId
+    ) {
       escalaAtualizada = await db.ResponsabilidadeJantar.findAll({
         where: { status: "Ativo" },
         order: [["ordem", "ASC"]],
       });
-      responseMessage = "Sessão deletada e escala de jantar revertida com sucesso.";
+      responseMessage =
+        "Sessão deletada e escala de jantar revertida com sucesso.";
     }
 
     res.status(200).json({ message: responseMessage, escalaAtualizada });
@@ -781,7 +857,7 @@ export const gerarBalaustreSessao = async (req, res) => {
       await deleteLocalFile(sessao.caminhoBalaustrePdf);
     }
 
-    const { tipoSessao, subtipoSessao, dataSessao } = sessao;
+    const { tipoSessao, subtipoSessao, dataSessao, objetivoSessao } = sessao;
 
     // --- Coleta de Dados Detalhada ---
 
@@ -842,9 +918,9 @@ export const gerarBalaustreSessao = async (req, res) => {
 
     // 5. Construção do Objeto de Dados para o Template
     const dadosParaTemplate = {
-      NumeroBalaustre: sessao.numero,
-      ClasseSessao: classeSessaoFormatada,
-      DiaSessao: dataSessao.toLocaleDateString("pt-BR", {
+      numero_balaustre: sessao.numero,
+      classe_sessao: classeSessaoFormatada,
+      dia_sessao: dataSessao.toLocaleDateString("pt-BR", {
         dateStyle: "long",
         timeZone: "UTC",
       }),
@@ -855,25 +931,26 @@ export const gerarBalaustreSessao = async (req, res) => {
         "pt-BR",
         { dateStyle: "long", timeZone: "UTC" }
       )}`,
-      Veneravel: veneravel,
-      PrimeiroVigilante: primeiroVigilante,
-      SegundoVigilante: segundoVigilante,
-      Orador: orador,
-      Secretario: secretario,
-      Tesoureiro: tesoureiro,
+      veneravel: veneravel,
+      primeiro_vigilante: primeiroVigilante,
+      segundo_vigilante: segundoVigilante,
+      orador: orador,
+      secretario: secretario,
+      tesoureiro: tesoureiro,
       Chanceler: chanceler,
       ResponsavelJantar: nomeFinalResponsavel,
-      NumeroIrmaosQuadro: numeroIrmaosQuadro,
-      NumeroVisitantes: numeroVisitantes,
-      EmendasBalaustreAnterior: "Sem",
-      ExpedienteRecebido: "(A preencher)",
-      ExpedienteExpedido: "(A preencher)",
-      SacoProposta: "(A preencher)",
-      OrdemDia: "(A preencher)",
-      TempoInstrucao: "(A preencher)",
-      TroncoBeneficiencia: "0",
-      Palavra: "(A preencher)",
-      Emendas: "(A preencher)",
+      numero_irmaos_quadro: numeroIrmaosQuadro,
+      numero_visitantes: numeroVisitantes,
+      emendas_balaustre_anterior: "Sem",
+      expediente_recebido: "(A preencher)",
+      expediente_expedido: "(A preencher)",
+      saco_proposta: "(A preencher)",
+      ordem_dia: "(A preencher)",
+      tempo_instrucao: "(A preencher)",
+      tronco_beneficencia: "0",
+      palavra: "(A preencher)",
+      emendas: "(A preencher)",
+      objetivo: objetivoSessao || "",
     };
 
     // --- Geração e Salvamento do Novo Balaústre ---

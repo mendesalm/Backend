@@ -116,10 +116,10 @@
     <div class="document-content">
       <header class="header-grid">
         <div class="header-logo logo-col-left">
-          <img src="{{headerImage}}" alt="Logo Esquerdo" />
+          <img src="{{header_image}}" alt="Logo Esquerdo" />
         </div>
         <div class="header-text">
-          <img src="{{footerImage}}" alt="Logo Direito" class="logo-in-text" />
+          <img src="{{footer_image}}" alt="Logo Direito" class="logo-in-text" />
           <p class="lodge-name">Loja Maçônica João Pedro Junqueira nº 2181</p>
           <p class="affiliation">Federada ao Grande Oriente do Brasil</p>
           <p class="affiliation">
@@ -139,15 +139,19 @@
       <p class="mso-normal">
         A Augusta, Respeitável e Benfeitora Loja Simbólica João Pedro Junqueira
         nº 2181, por meio de seu Venerável Mestre, convoca todos os Irmãos do
-        quadro para a <strong>{{ClasseSessao}}</strong>, a ser realizada no dia
-        <strong>{{DiaSessao}}</strong>, às <strong>{{hora_sessao}}</strong>, em
+        quadro para a <strong>{{classe_sessao}}</strong>, a ser realizada no dia
+        <strong>{{dia_sessao}}</strong>, às <strong>{{hora_sessao}}</strong>, em
         seu Templo situado à Av-9, Área A-2, Conjunto Mirage, Oriente de
         Anápolis, Goiás.
       </p>
 
+      <p class="mso-normal">
+        {{objetivo}}
+      </p>
+
       <p class="mso-normal" style="text-align: center">
         Após a sessão, será servido um ágape fraternal oferecido pelo Irmão
-        <strong>{{ResponsavelJantar}}</strong>.
+        <strong>{{responsavel_jantar}}</strong>.
       </p>
 
       <p
@@ -155,11 +159,11 @@
         align="right"
         style="margin-top: 15mm; margin-bottom: 20mm; text-align: right"
       >
-        <span>Oriente de Anápolis, {{DataAssinatura}} – E∴ V∴</span>
+        <span>Oriente de Anápolis, {{data_assinatura}} – E∴ V∴</span>
       </p>
 
       <p class="mso-sign" align="center" style="margin-top: 40px;">
-        {{{chancelerSignatureBlock}}}
+        {{{chanceler_signature_block}}}
       </p>
     </div>
   </body>

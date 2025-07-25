@@ -24,13 +24,13 @@ export default (sequelize, DataTypes) => {
         },
       },
       subtipoSessao: {
-        type: DataTypes.ENUM("Aprendiz", "Companheiro", "Mestre", "Instalação e Posse", "Comemorativa", "Iniciação", "Elevação", "Exaltação"),
+        type: DataTypes.ENUM("Aprendiz", "Companheiro", "Mestre", "Instalação e Posse", "Comemorativa", "Iniciação", "Elevação", "Exaltação", "Administrativa", "Eleitoral"),
         allowNull: false,
         validate: {
           notEmpty: { msg: "O grau da sessão é obrigatório." },
           isIn: {
-            args: [["Aprendiz", "Companheiro", "Mestre", "Instalação e Posse", "Comemorativa", "Iniciação", "Elevação", "Exaltação"]],
-            msg: "Subtipo de sessão inválido. Valores permitidos: Aprendiz, Companheiro, Mestre, Instalação e Posse, Comemorativa, Iniciação, Elevação, Exaltação.",
+            args: [["Aprendiz", "Companheiro", "Mestre", "Instalação e Posse", "Comemorativa", "Iniciação", "Elevação", "Exaltação", "Administrativa", "Eleitoral"]],
+            msg: "Subtipo de sessão inválido. Valores permitidos: Aprendiz, Companheiro, Mestre, Instalação e Posse, Comemorativa, Iniciação, Elevação, Exaltação, Administrativa, Eleitoral.",
           },
         },
       },
@@ -62,7 +62,7 @@ export default (sequelize, DataTypes) => {
       },
       troncoDeBeneficencia: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
       conjugeResponsavelJantarNome: { type: DataTypes.STRING, allowNull: true },
-      caminhoEditalPdf: { type: DataTypes.STRING, allowNull: true },
+      objetivoSessao: { type: DataTypes.TEXT, allowNull: true },
       caminhoBalaustrePdf: { type: DataTypes.STRING, allowNull: true },
       caminhoConvitePdf: { type: DataTypes.STRING, allowNull: true },
       balaustreId: {

@@ -120,7 +120,7 @@ export const aprovarBalaustre = async (req, res) => {
                 lodgeMemberId: userId
             };
 
-        const cargosNecessarios = ['secretario', 'orador', 'veneravelmestre'];
+        const cargosNecessarios = ['secretario', 'orador', 'veneravel_mestre'];
         const todasAssinadas = cargosNecessarios.every(c => assinaturasAtuais[c]);
 
         balaustre.assinaturas = assinaturasAtuais;
@@ -180,7 +180,7 @@ export const aprovarManualmenteBalaustre = async (req, res) => {
 
         let cargoAtestacao = null;
         const cargosPermitidos = [
-            'Venerável Mestre', 'Secretário', 'Secretário Adjunto', 'Orador', 'Orador Adjunto'
+            'veneravel_mestre', 'Secretário', 'Secretário Adjunto', 'Orador', 'Orador Adjunto'
         ];
 
         // Prioriza a ordem dos cargos para a atestação
@@ -239,7 +239,7 @@ export const updateBalaustre = async (req, res) => {
         if (balaustre.status === 'Aprovado') {
             const userIsAdmin = req.user.credencialAcesso === 'Webmaster';
             const userCargos = await db.CargoExercido.findAll({ where: { lodgeMemberId: req.user.id, dataTermino: null } });
-            const userIsVeneravel = userCargos.some(c => c.nomeCargo === 'Venerável Mestre');
+            const userIsVeneravel = userCargos.some(c => c.nomeCargo === 'veneravel_mestre');
 
             if (!userIsAdmin && !userIsVeneravel) {
                 return res.status(403).json({ message: "Acesso negado. Este documento já foi assinado e só pode ser editado pelo Venerável Mestre ou Webmaster." });
@@ -250,8 +250,8 @@ export const updateBalaustre = async (req, res) => {
         
         await balaustre.update({
             dadosFormulario: newData,
-            numero: newData.NumeroBalaustre,
-            ano: new Date(newData.DiaSessao).getFullYear()
+            numero: newData.numero_balaustre,
+            ano: new Date(newData.dia_sessao).getFullYear()
         });
 
         const { pdfPath } = await regenerateBalaustrePdf(id);
