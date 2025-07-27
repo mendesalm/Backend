@@ -65,6 +65,7 @@ export default (sequelize, DataTypes) => {
       objetivoSessao: { type: DataTypes.TEXT, allowNull: true },
       caminhoBalaustrePdf: { type: DataTypes.STRING, allowNull: true },
       caminhoConvitePdf: { type: DataTypes.STRING, allowNull: true },
+      caminhoEditalPdf: { type: DataTypes.STRING, allowNull: true },
       balaustreId: {
         type: DataTypes.INTEGER,
         allowNull: true,

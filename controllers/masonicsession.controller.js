@@ -251,12 +251,10 @@ export const createSession = async (req, res) => {
     (subtipoSessao === "Administrativa" || subtipoSessao === "Eleitoral")
   ) {
     if (!objetivoSessao) {
-      return res
-        .status(400)
-        .json({
-          message:
-            "Para sessões Especiais Administrativas ou Eleitorais, o objetivo da sessão é obrigatório.",
-        });
+      return res.status(400).json({
+        message:
+          "Para sessões Especiais Administrativas ou Eleitorais, o objetivo da sessão é obrigatório.",
+      });
     }
   } else {
     objetivoSessao = objetivoSessao || "Sessão Regular";
@@ -489,12 +487,26 @@ export const createSession = async (req, res) => {
           include: [{ model: db.LodgeMember, as: "membro" }],
         },
       ],
+      attributes: {
+        include: ["caminhoEditalPdf", "caminhoConvitePdf", "caminhoBalaustrePdf"],
+      },
     });
     console.log(
       "[createSession] sessaoCompleta (before response):",
       sessaoCompleta
     );
-    res.status(201).json(sessaoCompleta);
+
+    const sessaoCompletaJSON = sessaoCompleta.toJSON();
+
+    sessaoCompletaJSON.edital = sessaoCompletaJSON.caminhoEditalPdf
+      ? { caminhoPdfLocal: sessaoCompletaJSON.caminhoEditalPdf }
+      : null;
+
+    sessaoCompletaJSON.convite = sessaoCompletaJSON.caminhoConvitePdf
+      ? { caminhoPdfLocal: sessaoCompletaJSON.caminhoConvitePdf }
+      : null;
+
+    res.status(201).json(sessaoCompletaJSON);
   } catch (error) {
     console.error(
       "Erro nas operações secundárias (geração de docs/email):",
@@ -529,12 +541,10 @@ export const updateSession = async (req, res) => {
     (subtipoSessao === "Administrativa" || subtipoSessao === "Eleitoral")
   ) {
     if (!finalObjetivoSessao) {
-      return res
-        .status(400)
-        .json({
-          message:
-            "Para sessões Especiais Administrativas ou Eleitorais, o objetivo da sessão é obrigatório.",
-        });
+      return res.status(400).json({
+        message:
+          "Para sessões Especiais Administrativas ou Eleitorais, o objetivo da sessão é obrigatório.",
+      });
     }
   } else if (finalObjetivoSessao === undefined) {
     // Se objetivoSessao não foi enviado no body, mantém o valor existente ou define como 'Sessão Regular' se for nulo
@@ -918,7 +928,7 @@ export const gerarBalaustreSessao = async (req, res) => {
 
     // 5. Construção do Objeto de Dados para o Template
     const dadosParaTemplate = {
-      numero_balaustre: sessao.numero,
+      numero_balaustre: novaSessao.numero,
       classe_sessao: classeSessaoFormatada,
       dia_sessao: dataSessao.toLocaleDateString("pt-BR", {
         dateStyle: "long",
