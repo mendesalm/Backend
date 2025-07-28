@@ -365,7 +365,6 @@ export async function createBalaustreFromTemplate(
     numero: processedData.numero_balaustre,
     ano: new Date().getFullYear(), // Ou extraia de 'data' se disponível
     path: pdfResult.pdfPath,
-    googleDocId: null,
     caminhoPdfLocal: pdfResult.pdfPath,
     dadosFormulario: data,
     MasonicSessionId: masonicSessionId,

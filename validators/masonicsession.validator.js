@@ -65,6 +65,7 @@ export const validateSessionCreation = [
         ", "
       )}.`
     ),
+  body("objetivoSessao").optional().isString(),
   validate,
 ];
 

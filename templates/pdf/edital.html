@@ -12,7 +12,10 @@
         line-height: 1.6;
         color: #333;
       }
-
+      .center {
+        margin: auto;
+        width: 50%;
+      }
       .document-content {
         margin: 0;
       }
@@ -88,8 +91,9 @@
         text-align: justify;
         line-height: 1.8; /* Aumentado para melhor espaçamento */
         padding: 2mm 5mm; /* Adicionado padding horizontal */
-        margin-top: 15mm;
-        margin-bottom: 15mm;
+        margin-top: 0;
+        margin-bottom: 0;
+        text-indent: 6em;
       }
 
       .mso-sign {
@@ -99,17 +103,45 @@
         font-family: "Open Sans", sans-serif;
       }
 
-.signature-seal {
-    border: 1px solid #e0e0e0; background-color: #f7f7f7; border-radius: 8px;
-    padding: 8px; display: inline-block; text-align: left;
-    box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
-}
-.seal-content { display: flex; align-items: center; }
-.seal-logo img { width: 45px; height: 45px; margin-right: 12px; }
-.seal-text { font-family: 'Open Sans', sans-serif; font-size: 9pt; line-height: 1.4; }
-.signer-name { font-weight: bold; color: #380404; text-transform: uppercase; }
-.signer-role { font-style: italic; color: #333; }
-.signer-timestamp { font-size: 8pt; color: #777; }
+      .signature-seal {
+        border: 1px solid #e0e0e0;
+        background-color: #f7f7f7;
+        border-radius: 8px;
+        padding: 8px;
+        display: flex;
+        justify-content: center;
+        text-align: left;
+        max-width: 40vw;
+        box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.05);
+      }
+      .seal-content {
+        display: flex;
+        align-items: center;
+        margin: auto;
+      }
+      .seal-logo img {
+        width: 45px;
+        height: 45px;
+        margin-right: 12px;
+      }
+      .seal-text {
+        font-family: "Open Sans", sans-serif;
+        font-size: 9pt;
+        line-height: 1;
+      }
+      .signer-name {
+        font-weight: bold;
+        color: #380404;
+        text-transform: uppercase;
+      }
+      .signer-role {
+        font-style: italic;
+        color: #333;
+      }
+      .signer-timestamp {
+        font-size: 8pt;
+        color: #777;
+      }
     </style>
   </head>
   <body>
@@ -128,7 +160,7 @@
         </div>
       </header>
 
-      <p class="mso-title" style="margin-top: 20mm; margin-bottom: 10mm">
+      <p class="mso-title" style="margin-top: 15mm; margin-bottom: 10mm">
         <b
           ><span style="font-size: 18pt; line-height: 1.2"
             >EDITAL DE CONVOCAÇÃO</span
@@ -137,19 +169,16 @@
       </p>
 
       <p class="mso-normal">
-        A Augusta, Respeitável e Benfeitora Loja Simbólica João Pedro Junqueira
-        nº 2181, por meio de seu Venerável Mestre, convoca todos os Irmãos do
-        quadro para a <strong>{{classe_sessao}}</strong>, a ser realizada no dia
+        Pelo presente instrumento, em nome da Augusta, Respeitável e Benfeitora
+        Loja Simbólica João Pedro Junqueira nº 2181 e por ordem de seu Venerável
+        Mestre, {{veneravel}}, convoco todos os Irmãos do Quadro para a
+        <strong>{{classe_sessao}}</strong>, {{objetivo}}, a ser realizada no dia
         <strong>{{dia_sessao}}</strong>, às <strong>{{hora_sessao}}</strong>, em
         seu Templo situado à Av-9, Área A-2, Conjunto Mirage, Oriente de
         Anápolis, Goiás.
       </p>
 
       <p class="mso-normal">
-        {{objetivo}}
-      </p>
-
-      <p class="mso-normal" style="text-align: center">
         Após a sessão, será servido um ágape fraternal oferecido pelo Irmão
         <strong>{{responsavel_jantar}}</strong>.
       </p>
@@ -157,12 +186,12 @@
       <p
         class="mso-normal"
         align="right"
-        style="margin-top: 15mm; margin-bottom: 20mm; text-align: right"
+        style="margin-bottom: 25mm; text-align: right"
       >
         <span>Oriente de Anápolis, {{data_assinatura}} – E∴ V∴</span>
       </p>
 
-      <p class="mso-sign" align="center" style="margin-top: 40px;">
+      <p class="mso-sign center" style="margin-top: 20px">
         {{{chanceler_signature_block}}}
       </p>
     </div>

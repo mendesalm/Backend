@@ -291,6 +291,7 @@ export const createSession = async (req, res) => {
         dataSessao,
         tipoSessao,
         subtipoSessao,
+        objetivoSessao, // Adicionado para garantir que seja salvo
         responsavelJantarLodgeMemberId: responsavelJantar?.id || null,
         responsabilidadeJantarId, // Pode ser null
         tipoResponsabilidadeJantar, // Salva o tipo de responsabilidade
@@ -433,13 +434,13 @@ export const createSession = async (req, res) => {
       // Convite specific placeholders
       tipo_sessao: tipoSessao,
       grau_sessao: subtipoSessao,
-      OBJETIVO: objetivoSessao || "",
+      objetivo: objetivoSessao || "",
     };
 
     console.log("[createSession] dadosParaTemplate:", dadosParaTemplate);
 
     const balaustreInstance = await createBalaustreFromTemplate(
-      dadosParaTemplate,
+      { ...dadosParaTemplate },
       novaSessao.id,
       novaSessao.numero
     );
@@ -449,13 +450,15 @@ export const createSession = async (req, res) => {
     );
 
     const edital = await createEditalFromTemplate(
-      dadosParaTemplate,
+      { ...dadosParaTemplate },
       req.user.NomeCompleto,
       novaSessao.numero
     );
     console.log("[createSession] edital (after creation):", edital);
 
-    const conviteInfo = await createConviteFromTemplate(dadosParaTemplate);
+    const conviteInfo = await createConviteFromTemplate({
+      ...dadosParaTemplate,
+    });
     console.log("[createSession] conviteInfo (after creation):", conviteInfo);
 
     // Regenerate the PDF to include initial signature lines
@@ -488,7 +491,12 @@ export const createSession = async (req, res) => {
         },
       ],
       attributes: {
-        include: ["caminhoEditalPdf", "caminhoConvitePdf", "caminhoBalaustrePdf"],
+        include: [
+          "objetivoSessao",
+          "caminhoEditalPdf",
+          "caminhoConvitePdf",
+          "caminhoBalaustrePdf",
+        ],
       },
     });
     console.log(
@@ -534,33 +542,34 @@ export const updateSession = async (req, res) => {
     ...outrosCampos
   } = req.body;
 
-  // Validação e definição de objetivoSessao para atualização
-  let finalObjetivoSessao = objetivoSessao;
-  if (
-    tipoSessao === "Especial" &&
-    (subtipoSessao === "Administrativa" || subtipoSessao === "Eleitoral")
-  ) {
-    if (!finalObjetivoSessao) {
-      return res.status(400).json({
-        message:
-          "Para sessões Especiais Administrativas ou Eleitorais, o objetivo da sessão é obrigatório.",
-      });
-    }
-  } else if (finalObjetivoSessao === undefined) {
-    // Se objetivoSessao não foi enviado no body, mantém o valor existente ou define como 'Sessão Regular' se for nulo
-    finalObjetivoSessao = session.objetivoSessao || "Sessão Regular";
-  } else if (finalObjetivoSessao === null) {
-    // Se foi enviado explicitamente como null, mantém null
-    finalObjetivoSessao = null;
-  } else {
-    // Se foi enviado com um valor, usa esse valor
-    finalObjetivoSessao = finalObjetivoSessao || "Sessão Regular";
-  }
-
   try {
     const session = await db.MasonicSession.findByPk(id);
     if (!session) {
       return res.status(404).json({ message: "Sessão não encontrada." });
+    }
+
+    // Validação e definição de objetivoSessao para atualização
+    let finalObjetivoSessao;
+    if (objetivoSessao !== undefined) {
+      finalObjetivoSessao = objetivoSessao;
+    } else {
+      finalObjetivoSessao = session.objetivoSessao;
+    }
+
+    const effectiveTipoSessao = tipoSessao || session.tipoSessao;
+    const effectiveSubtipoSessao = subtipoSessao || session.subtipoSessao;
+
+    if (
+      effectiveTipoSessao === "Especial" &&
+      (effectiveSubtipoSessao === "Administrativa" ||
+        effectiveSubtipoSessao === "Eleitoral")
+    ) {
+      if (!finalObjetivoSessao) {
+        return res.status(400).json({
+          message:
+            "Para sessões Especiais Administrativas ou Eleitorais, o objetivo da sessão é obrigatório.",
+        });
+      }
     }
 
     const updateData = { ...outrosCampos, objetivoSessao: finalObjetivoSessao };
