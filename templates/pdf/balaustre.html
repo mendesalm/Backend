@@ -127,17 +127,42 @@
         width: 60%;
       }
       /* Specific styles from the Word HTML that might be useful, adapted */
-.signature-seal {
-    border: 1px solid #e0e0e0; background-color: #f7f7f7; border-radius: 8px;
-    padding: 8px; display: inline-block; text-align: left;
-    box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
-}
-.seal-content { display: flex; align-items: center; }
-.seal-logo img { width: 45px; height: 45px; margin-right: 12px; }
-.seal-text { font-family: 'Open Sans', sans-serif; font-size: 9pt; line-height: 1.4; }
-.signer-name { font-weight: bold; color: #380404; text-transform: uppercase; }
-.signer-role { font-style: italic; color: #333; }
-.signer-timestamp { font-size: 8pt; color: #777; }
+      .signature-seal {
+        border: 1px solid #e0e0e0;
+        background-color: #f7f7f7;
+        border-radius: 8px;
+        padding: 8px;
+        display: inline-block;
+        text-align: left;
+        box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.05);
+      }
+      .seal-content {
+        display: flex;
+        align-items: center;
+      }
+      .seal-logo img {
+        width: 45px;
+        height: 45px;
+        margin-right: 12px;
+      }
+      .seal-text {
+        font-family: "Open Sans", sans-serif;
+        font-size: 9pt;
+        line-height: 1.4;
+      }
+      .signer-name {
+        font-weight: bold;
+        color: #380404;
+        text-transform: uppercase;
+      }
+      .signer-role {
+        font-style: italic;
+        color: #333;
+      }
+      .signer-timestamp {
+        font-size: 8pt;
+        color: #777;
+      }
     </style>
   </head>
   <body>
@@ -195,14 +220,14 @@
 
       <p class="mso-normal" style="text-align: justify; line-height: normal">
         <span
-          >Precisamente às {{hora_inicio_sessao}} do dia {{dia_sessao}} da E∴ V∴, a
-          Augusta, Respeitável e Benfeitora Loja Simbólica João Pedro Junqueira
-          n° 2181, jurisdicionada ao Grande Oriente do Estado de Goiás, federada
-          ao Grande Oriente do Brasil, reuniu-se em seu Templo, sito à Avenida 9
-          – Área A-2, Conjunto Mirage, Oriente de Anápolis, Goiás, em Sessão
-          {{classe_sessao_corpo}}, com {{numero_irmaos_quadro}} irmãos do quadro e
-          {{numero_visitantes}} irmãos visitantes, ficando a Loja assim
-          constituída:
+          >Precisamente às {{hora_inicio_sessao}} do dia {{dia_sessao}} da E∴
+          V∴, a Augusta, Respeitável e Benfeitora Loja Simbólica João Pedro
+          Junqueira n° 2181, jurisdicionada ao Grande Oriente do Estado de
+          Goiás, federada ao Grande Oriente do Brasil, reuniu-se em seu Templo,
+          sito à Avenida 9 – Área A-2, Conjunto Mirage, Oriente de Anápolis,
+          Goiás, em Sessão {{classe_sessao_corpo}}, com {{numero_irmaos_quadro}}
+          irmãos do quadro e {{numero_visitantes}} irmãos visitantes, ficando a
+          Loja assim constituída:
         </span>
         <b><span>V∴ Mestre</span></b
         ><span> {{veneravel}};</span> <b><span>1° Vig∴</span></b
@@ -215,11 +240,7 @@
           {{chanceler}}, sendo os demais cargos preenchidos pelos seus titulares
           ou Irmãos do Quadro.
         </span>
-        <b>Balaústre:</b
-        ><span>
-          foi lido e aprovado o Balaústre da Sessão do dia
-          {{data_sessao_anterior}}, {{emendas_balaustre_anterior}} emendas.
-        </span>
+        <b>Balaústre:</b><span> {{balaustre_anterior}}. </span>
         <b>Expediente Recebido:</b><span> {{expediente_recebido}}. </span>
         <b>Expediente Expedido:</b><span> {{expediente_expedido}}. </span>
         <b>Saco de Propostas e Informação</b>:
@@ -256,19 +277,19 @@
         <span>Oriente de Anápolis, {{data_assinatura}} – E∴ V∴</span>
       </p>
 
-<table class="officers-table" style="width: 100%; border: none">
-    <tr>
-        <td style="width: 33%; text-align: center; border: none">
+      <table class="officers-table" style="width: 100%; border: none">
+        <tr>
+          <td style="width: 33%; text-align: center; border: none">
             {{{secretario_signature_block}}}
-        </td>
-        <td style="width: 33%; text-align: center; border: none">
+          </td>
+          <td style="width: 33%; text-align: center; border: none">
             {{{orador_signature_block}}}
-        </td>
-        <td style="width: 33%; text-align: center; border: none">
+          </td>
+          <td style="width: 33%; text-align: center; border: none">
             {{{veneravel_mestre_signature_block}}}
-        </td>
-    </tr>
-</table>
+          </td>
+        </tr>
+      </table>
     </div>
   </body>
 </html>
