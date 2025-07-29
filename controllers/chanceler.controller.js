@@ -76,7 +76,7 @@ export const gerarCartaoManual = async (req, res) => {
           });
       nomeCompleto = membro.NomeCompleto;
       dataNascimento = membro.DataNascimento;
-      aniversarianteData.VOCATIVO = "Querido Irmão";
+      aniversarianteData.vocativo = "Querido Irmão";
       subtipoMensagem = "IRMAO";
     } else if (familyMemberId) {
       const familiar = await db.FamilyMember.findByPk(familyMemberId, {
@@ -96,19 +96,19 @@ export const gerarCartaoManual = async (req, res) => {
 
       switch (parentesco) {
         case "Cônjuge":
-          aniversarianteData.VOCATIVO = "Querida Cunhada";
+          aniversarianteData.vocativo = "Querida Cunhada";
           subtipoMensagem = "CUNHADA";
           break;
         case "Filho":
-          aniversarianteData.VOCATIVO = "Querido Sobrinho";
+          aniversarianteData.vocativo = "Querido Sobrinho";
           subtipoMensagem = "SOBRINHO";
           break;
         case "Filha":
-          aniversarianteData.VOCATIVO = "Querida Sobrinha";
+          aniversarianteData.vocativo = "Querida Sobrinha";
           subtipoMensagem = "SOBRINHO";
           break;
         default:
-          aniversarianteData.VOCATIVO = "Prezado(a)"; // Fallback
+          aniversarianteData.vocativo = "Prezado(a)"; // Fallback
           subtipoMensagem = "FAMILIAR"; // Fallback para subtipo
       }
     } else {
@@ -121,11 +121,26 @@ export const gerarCartaoManual = async (req, res) => {
 
     // Formatar a data de nascimento para o template
     
-    aniversarianteData.NOME_ANIVERSARIANTE = nomeCompleto;
-    aniversarianteData.DATA_ANIVERSARIO = format(dataNascimento, "dd 'de' MMMM", { locale: ptBR });
-    aniversarianteData.ANO_ATUAL = format(new Date(), "yyyy");
+    const corpoMensagem = await db.CorpoMensagem.findOne({
+      where: { tipo: 'ANIVERSARIO', subtipo: subtipoMensagem, ativo: true },
+      order: [db.sequelize.random()],
+    });
 
-    const { pdfPath } = await createCartaoAniversarioFromTemplate(db, aniversarianteData, subtipoMensagem);
+    const veneravel = await db.LodgeMember.findOne({
+      include: [{
+        model: db.CargoExercido,
+        as: 'cargos',
+        where: { nomeCargo: 'Venerável Mestre', dataTermino: null },
+      }],
+    });
+
+    aniversarianteData.nome_aniversariante = nomeCompleto;
+    aniversarianteData.data_aniversario = format(dataNascimento, "dd 'de' MMMM", { locale: ptBR });
+    aniversarianteData.ano_atual = format(new Date(), "yyyy");
+    aniversarianteData.mensagem_dinamica = corpoMensagem ? corpoMensagem.conteudo : 'Feliz Aniversário!';
+    aniversarianteData.veneravel = veneravel ? veneravel.NomeCompleto : 'Venerável Mestre';
+
+    const { pdfPath } = await createCartaoAniversarioFromTemplate(aniversarianteData);
     res
       .status(200)
       .json({ message: "Cartão gerado com sucesso!", caminho: pdfPath });

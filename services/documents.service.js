@@ -28,6 +28,11 @@ const imageToBase64 = (imgPath) => {
   if (imgPath.endsWith(".png")) contentType = "image/png";
   else if (imgPath.endsWith(".jpg") || imgPath.endsWith(".jpeg"))
     contentType = "image/jpeg";
+  else if (imgPath.endsWith(".svg")) {
+    contentType = "image/svg+xml";
+    const svgContent = imageData.toString("utf8");
+    return `data:${contentType},${encodeURIComponent(svgContent)}`;
+  }
   return `data:${contentType};base64,${imageData.toString("base64")}`;
 };
 
@@ -250,8 +255,8 @@ async function generateCartaoPdf(data) {
   await page.setContent(htmlContent, { waitUntil: "networkidle0" });
   await page.pdf({
     path: pdfFilePath,
-    width: "1920px",
-    height: "1080px",
+    format: "A5",
+    landscape: true,
     printBackground: true,
     margin: { top: "0", right: "0", bottom: "0", left: "0" },
   });
@@ -489,10 +494,7 @@ export async function regenerateEditalPdf(editalData, signerName) {
   return pdfResult;
 }
 
-export async function createCartaoAniversarioFromTemplate(
-  aniversarianteData,
-  subtipoMensagem
-) {
+export async function createCartaoAniversarioFromTemplate(aniversarianteData) {
   // A lógica para buscar dados do BD foi movida para o controller/serviço que chama esta função.
   // Esta função agora foca apenas na geração do PDF com os dados recebidos.
   return generateCartaoPdf(aniversarianteData);
