@@ -3,110 +3,125 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Convite</title>
+    <title>Convite de Participação</title>
     <style>
+      html,
       body {
-        font-family: "CinzelDecorative", serif;
         margin: 0;
         padding: 0;
         box-sizing: border-box;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        min-height: 100vh;
+        font-family: "Oleo Script", cursive;
+        width: 210mm; /* A5 width in landscape */
+        height: 148mm; /* A5 height in landscape */
         background-color: #f4f4f4;
-      }
-      .container {
-        width: 210mm; /* A5 width */
-        height: 148mm; /* A5 height */
-        background-image: url("{{conviteImage}}");
-        background-size: cover;
+        background-image: url("{{convite_image}}");
+        background-size: 210mm 150mm !important; /* Ensure image fits without cropping */
+        background-repeat: no-repeat;
         background-position: center;
-        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        position: relative;
+        text-transform: none; /* Explicitly disable uppercase transformation */
+        overflow: hidden; /* Prevent content from spilling over */
+        page-break-after: avoid; /* Avoid page breaks */
+      }
+
+      .content-area {
+        position: absolute;
+        top: 2.5cm; /* Reduced from 3.2cm to give more space */
+        left: 2cm;
+        right: 2cm;
+        bottom: 2.5cm; /* Reduced from 3.2cm to ensure content fits */
         display: flex;
         flex-direction: column;
         justify-content: space-between;
         text-align: center;
-        position: relative;
-        overflow: hidden;
+        color: #380404; /* Text color to white for contrast */
+        text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5); /* Shadow for readability */
       }
+
       .header,
       .footer {
         text-align: center;
-        margin-bottom: 0;
-        color: #380404;
       }
-      .header img {
-        max-width: 100px;
-        margin-bottom: 10px;
-      }
+
       .content {
         flex-grow: 1;
         display: flex;
         flex-direction: column;
         justify-content: center;
         align-items: center;
-        text-align: center;
+      }
+
+      h1 {
+        font-size: 40px; /* Reduced from 22px */
         color: #380404;
       }
-      h1 {
-        font-size: 14px;
-        margin-bottom: 1px;
-      }
+
       p {
-        font-size: 8px;
-        line-height: 1;
-        margin-bottom: 0;
+        font-size: 18px; /* Reduced from 16px */
+        line-height: 1.4; /* Reduced from 1.5 to decrease spacing between lines */
+        margin-bottom: 4px; /* Reduced from 12px */
+        color: #380404;
+        margin-top: 5px;
       }
+
       .highlight {
         font-weight: bold;
+        font-size: 18px;
       }
-      .signature {
-        margin-top: 3px;
-        font-size: 6px;
-        line-height: 1;
+
+      .signature-vm {
+        margin-top: 18px; /* Reduced from 18px */
+        font-size: 18px; /* Reduced from 14px */
+        line-height: 1; /* Reduced from 1.5 */
       }
+      .signature-stamp {
+        font-size: 12px; /* Reduced from 14px */
+        line-height: 1; /* Reduced from 1.5 */
+        margin-bottom: 10px;
+        margin-top: 0;
+      }
+
+      .adress-stamp {
+        font-size: 12px; /* Reduced from 14px */
+        line-height: 1; /* Reduced from 1.5 */
+        margin-bottom: 30px;
+      }
+
       @page {
         size: A5 landscape;
-        margin: 0;
-      }
-      body {
-        width: 210mm;
-        height: 148mm;
-        margin: 0;
-        padding: 0;
+        margin: 0 !important; /* Ensure no default margins */
       }
     </style>
   </head>
   <body>
-    <div class="container">
+    <div class="content-area">
       <div class="header">
         <h1>Convite</h1>
       </div>
       <div class="content">
         <p>
-          A
           <span class="highlight"
-            >Loja Maçônica João Pedro Junqueira nº 2181</span
+            >A Loja Maçônica João Pedro Junqueira nº 2181</span
+          ><br />
+          tem a honra de convidar o Irmão para a <br />
+          <span class="highlight">{{classe_sessao}}</span><br />
+
+          a ser realizada no dia
+          <span class="highlight"
+            >{{dia_sessao}} às {{hora_sessao}}, em seu Templo.</span
           >
-          tem a honra de convidar V.S. para participar da
-        </p>
-        <p><span class="highlight">{{ClasseSessao}}</span></p>
-        <p>
-          que será realizada no dia
-          <span class="highlight">{{DiaSessao}}</span>, às
-          <span class="highlight">{{hora_sessao}}</span>, em seu Templo.
         </p>
         <p>
           Contamos com a sua valiosa presença para abrilhantar nossos trabalhos.
+          <br />
+          Fraternalmente,
         </p>
-        <p>Fraternalmente,</p>
       </div>
       <div class="footer">
-        <p class="signature">{{Veneravel}}</p>
-        <p class="signature">Venerável Mestre</p>
-        <p class="signature">Loja Maçônica João Pedro Junqueira nº 2181</p>
-        <p class="signature">
+        <p class="signature-vm">{{veneravel}}</p>
+        <p class="signature-stamp">Venerável Mestre</p>
+        <p class="adress-stamp">
+          Loja Maçônica João Pedro Junqueira nº 2181<br />
           Av-9, Área A-2, Conjunto Mirage, Oriente de Anápolis, Goiás.
         </p>
       </div>

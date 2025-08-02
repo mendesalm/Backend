@@ -268,6 +268,29 @@ export const createSession = async (req, res) => {
   let novaSessao;
   const transaction = await db.sequelize.transaction();
   try {
+    // Define o início e o fim do dia para a data da sessão
+    const startOfDay = new Date(dataSessao);
+    startOfDay.setUTCHours(0, 0, 0, 0);
+
+    const endOfDay = new Date(dataSessao);
+    endOfDay.setUTCHours(23, 59, 59, 999);
+
+    // Verifica se já existe uma sessão para esta data
+    const existingSession = await db.MasonicSession.findOne({
+      where: {
+        dataSessao: {
+          [Op.between]: [startOfDay, endOfDay],
+        },
+      },
+      transaction, // Executa a consulta dentro da transação
+    });
+
+    if (existingSession) {
+      await transaction.rollback(); // Desfaz a transação
+      return res.status(409).json({
+        message: "Já existe uma sessão agendada para esta data.",
+      });
+    }
     let responsavelJantar = null;
     let responsabilidadeJantarId = null;
 
@@ -532,7 +555,6 @@ export const createSession = async (req, res) => {
  */
 export const updateSession = async (req, res) => {
   const { id } = req.params;
-  // O validador já tratou a conversão de dataSessao, se presente.
   const {
     dataSessao,
     tipoSessao,
@@ -541,10 +563,38 @@ export const updateSession = async (req, res) => {
     ...outrosCampos
   } = req.body;
 
+  const transaction = await db.sequelize.transaction();
+
   try {
-    const session = await db.MasonicSession.findByPk(id);
+    const session = await db.MasonicSession.findByPk(id, { transaction });
     if (!session) {
+      await transaction.rollback();
       return res.status(404).json({ message: "Sessão não encontrada." });
+    }
+
+    // Se a data da sessão estiver sendo alterada, verifique a duplicidade
+    if (dataSessao) {
+      const startOfDay = new Date(dataSessao);
+      startOfDay.setUTCHours(0, 0, 0, 0);
+      const endOfDay = new Date(dataSessao);
+      endOfDay.setUTCHours(23, 59, 59, 999);
+
+      const existingSession = await db.MasonicSession.findOne({
+        where: {
+          dataSessao: {
+            [Op.between]: [startOfDay, endOfDay],
+          },
+          id: { [Op.ne]: id }, // Exclui a sessão atual da verificação
+        },
+        transaction,
+      });
+
+      if (existingSession) {
+        await transaction.rollback();
+        return res.status(409).json({
+          message: "Já existe outra sessão agendada para esta data.",
+        });
+      }
     }
 
     // Validação e definição de objetivoSessao para atualização
@@ -564,6 +614,7 @@ export const updateSession = async (req, res) => {
         effectiveSubtipoSessao === "Eleitoral")
     ) {
       if (!finalObjetivoSessao) {
+        await transaction.rollback();
         return res.status(400).json({
           message:
             "Para sessões Especiais Administrativas ou Eleitorais, o objetivo da sessão é obrigatório.",
@@ -576,13 +627,9 @@ export const updateSession = async (req, res) => {
       updateData.dataSessao = dataSessao; // dataSessao já é um objeto Date UTC
     }
 
-    await session.update(updateData);
+    await session.update(updateData, { transaction });
 
-    // Regenerate Edital PDF if it exists
-    // if (session.caminhoEditalPdf) {
-    //   const { pdfPath: editalPdfPath } = await regenerateEditalPdf(id);
-    //   await session.update({ caminhoEditalPdf: editalPdfPath });
-    // }
+    await transaction.commit();
 
     // Re-fetch the session with all required associations
     const updatedSession = await db.MasonicSession.findByPk(id, {
@@ -622,6 +669,7 @@ export const updateSession = async (req, res) => {
 
     res.status(200).json(updatedSession);
   } catch (error) {
+    await transaction.rollback();
     console.error("Erro em updateSession:", error);
     res.status(500).json({
       message: "Erro ao atualizar sessão.",

@@ -58,19 +58,49 @@ const prepareHtmlForPdf = (templateName, data) => {
 
   let fontStyles = "";
   if (templateName === "convite_participacao") {
-    const cinzelDecorativeRegularBase64 = readFileSync(
-      path.join(
-        __dirname,
-        "..",
-        "assets",
-        "fonts",
-        "CinzelDecorative-Regular.ttf"
-      )
+    // Carregar a fonte Oleo Script para o convite, conforme solicitado
+    const oleoScriptBoldBase64 = readFileSync(
+      path.join(__dirname, "..", "assets", "fonts", "OleoScript-Bold.ttf")
     ).toString("base64");
-    fontStyles = `
-      @font-face { font-family: "CinzelDecorative"; src: url("data:font/truetype;charset=utf-8;base64,${cinzelDecorativeRegularBase64}") format("truetype"); font-weight: normal; font-style: normal; }
+    const oleoScriptRegularBase64 = readFileSync(
+      path.join(__dirname, "..", "assets", "fonts", "OleoScript-Regular.ttf")
+    ).toString("base64");
+
+    let fontStyles = "";
+    if (templateName === "convite_participacao") {
+      fontStyles = `
+      @font-face { font-family: "Oleo Script"; src: url("data:font/truetype;charset=utf-8;base64,${oleoScriptRegularBase64}") format("truetype"); font-weight: normal; font-style: normal; }
+      @font-face { font-family: "Oleo Script"; src: url("data:font/truetype;charset=utf-8;base64,${oleoScriptBoldBase64}") format("truetype"); font-weight: bold; font-style: normal; }
     `;
-    data.conviteImage = imageToBase64("assets/images/convite.png");
+      data.convite_image = imageToBase64("assets/images/convite.png");
+      htmlContent = htmlContent.replace("</style>", `${fontStyles}</style>`);
+    } else {
+      const poppinsRegularBase64 = readFileSync(
+        path.join(__dirname, "..", "assets", "fonts", "Poppins-Regular.ttf")
+      ).toString("base64");
+      const poppinsBoldBase64 = readFileSync(
+        path.join(__dirname, "..", "assets", "fonts", "Poppins-Bold.ttf")
+      ).toString("base64");
+      const openSansRegularBase64 = readFileSync(
+        path.join(__dirname, "..", "assets", "fonts", "OpenSans-Regular.ttf")
+      ).toString("base64");
+      const openSansBoldBase64 = readFileSync(
+        path.join(__dirname, "..", "assets", "fonts", "OpenSans-Bold.ttf")
+      ).toString("base64");
+      const greatVibesRegularBase64 = readFileSync(
+        path.join(__dirname, "..", "assets", "fonts", "GreatVibes-Regular.ttf")
+      ).toString("base64");
+      fontStyles = `
+      @font-face { font-family: "Poppins"; src: url("data:font/truetype;charset=utf-8;base64,${poppinsRegularBase64}") format("truetype"); font-weight: normal; font-style: normal; }
+      @font-face { font-family: "Poppins"; src: url("data:font/truetype;charset=utf-8;base64,${poppinsBoldBase64}") format("truetype"); font-weight: bold; font-style: normal; }
+      @font-face { font-family: "Open Sans"; src: url("data:font/truetype;charset=utf-8;base64,${openSansRegularBase64}") format("truetype"); font-weight: normal; font-style: normal; }
+      @font-face { font-family: "Open Sans"; src: url("data:font/truetype;charset=utf-8;base64,${openSansBoldBase64}") format("truetype"); font-weight: bold; font-style: normal; }
+      @font-face { font-family: "Oleo Script"; src: url("data:font/truetype;charset=utf-8;base64,${oleoScriptRegularBase64}") format("truetype"); font-weight: normal; font-style: normal; }
+      @font-face { font-family: "Oleo Script"; src: url("data:font/truetype;charset=utf-8;base64,${oleoScriptBoldBase64}") format("truetype"); font-weight: bold; font-style: normal; }
+      @font-face { font-family: "Great Vibes"; src: url("data:font/truetype;charset=utf-8;base64,${greatVibesRegularBase64}") format("truetype"); font-weight: normal; font-style: normal; }
+    `;
+      htmlContent = htmlContent.replace("</style>", `${fontStyles}</style>`);
+    }
   } else {
     const poppinsRegularBase64 = readFileSync(
       path.join(__dirname, "..", "assets", "fonts", "Poppins-Regular.ttf")
@@ -102,8 +132,8 @@ const prepareHtmlForPdf = (templateName, data) => {
       @font-face { font-family: "Oleo Script"; src: url("data:font/truetype;charset=utf-8;base64,${oleoScriptBoldBase64}") format("truetype"); font-weight: bold; font-style: normal; }
       @font-face { font-family: "Great Vibes"; src: url("data:font/truetype;charset=utf-8;base64,${greatVibesRegularBase64}") format("truetype"); font-weight: normal; font-style: normal; }
     `;
+    htmlContent = htmlContent.replace("</style>", `${fontStyles}</style>`);
   }
-  htmlContent = htmlContent.replace("</style>", `${fontStyles}</style>`);
 
   data.header_image = imageToBase64("assets/images/logoJPJ_.png");
   data.footer_image = imageToBase64("assets/images/logoRB_.png");
@@ -274,11 +304,17 @@ async function generateCartaoPdf(data) {
 async function generateConvitePdf(data) {
   const browser = await puppeteer.launch({
     headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-web-security",
+    ], // Mantido apenas o essencial para compatibilidade
   });
   const page = await browser.newPage();
   const processedData = prepareDataForConvite(data);
   const htmlContent = prepareHtmlForPdf("convite_participacao", processedData);
+
+  await page.setContent(htmlContent, { waitUntil: "networkidle0" });
 
   const pdfDir = path.join(process.cwd(), "uploads", "convites");
   if (!existsSync(pdfDir)) mkdirSync(pdfDir, { recursive: true });
@@ -290,15 +326,19 @@ async function generateConvitePdf(data) {
     `temp_${Date.now()}_${pdfFileName}`
   );
 
-  await page.setContent(htmlContent, { waitUntil: "networkidle0" });
-
-  await page.pdf({
-    path: tempPdfFilePath,
-    format: "A5",
-    landscape: true,
-    printBackground: true,
-    margin: { top: "32mm", right: "35mm", bottom: "32mm", left: "35mm" },
-  });
+  try {
+    await page.pdf({
+      path: tempPdfFilePath,
+      format: "A5",
+      landscape: true,
+      printBackground: true,
+      margin: { top: "0", right: "0", bottom: "0", left: "0" },
+      preferCSSPageSize: true,
+    });
+  } catch (error) {
+    console.error("[ERROR] Falha ao gerar PDF:", error);
+    throw error; // Propaga o erro para depuração
+  }
 
   // Renomeia o arquivo temporário para o nome final
   await new Promise((resolve, reject) => {
@@ -508,8 +548,19 @@ export async function createConviteFromTemplate(conviteData) {
 const prepareDataForConvite = (d) => {
   const processed = { ...d };
   if (d.classe_sessao) {
-    processed.classe_sessao = String(d.classe_sessao);
+    processed.classe_sessao = String(d.classe_sessao); // Sem transformação para uppercase
   }
+  if (d.veneravel) {
+    processed.veneravel = String(d.veneravel); // Sem transformação para uppercase
+  }
+  if (d.dia_sessao) {
+    processed.dia_sessao = String(d.dia_sessao); // Sem transformação para uppercase
+  }
+  if (d.hora_sessao) {
+    processed.hora_sessao = String(d.hora_sessao); // Sem transformação para uppercase
+  }
+  // Log para depuração, para verificar se os dados estão sendo transformados
+  console.log("[DEBUG] Dados processados para convite:", processed);
   return processed;
 };
 
