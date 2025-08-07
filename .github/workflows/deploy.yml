@@ -1,0 +1,19 @@
+name: Deploy Backend to VPS
+on:
+  push:
+    branches: [ main ] # Altere para a branch que você usa
+jobs:
+  deploy-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy Backend to VPS via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: 69.62.89.211 # IP da sua VPS
+          username: root # Usuário da VPS
+          key: ${{ secrets.SSH_PRIVATE_KEY }} # Nome do segredo com a chave privada
+          script: |
+            cd /root/sysjpj/Backend
+            git pull origin main
+            npm install
+            pm2 restart backend
