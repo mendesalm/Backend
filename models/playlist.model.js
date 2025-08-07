@@ -24,6 +24,10 @@ export default (sequelize, DataTypes) => {
       otherKey: "tipoSessaoId",
       as: "tiposSessao",
     });
+    Playlist.hasMany(models.TipoSessaoPlaylist, {
+      foreignKey: "playlistId",
+      as: "TipoSessaoPlaylists",
+    });
   };
 
   return Playlist;

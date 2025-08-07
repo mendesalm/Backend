@@ -24,7 +24,6 @@ export const getSequenciaByTipoSessao = async (req, res) => {
         {
           model: db.Playlist,
           as: "playlists",
-          through: { attributes: [] },
           include: [
             {
               model: db.Musica,
@@ -70,12 +69,10 @@ export const getSequenciaByTipoSessao = async (req, res) => {
     });
   } catch (error) {
     console.error("Erro ao buscar sequência de harmonia:", error);
-    res
-      .status(500)
-      .json({
-        message: "Erro ao buscar sequência de harmonia.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao buscar sequência de harmonia.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -94,10 +91,6 @@ export const getAllTiposSessao = async (req, res) => {
         {
           model: db.Playlist,
           as: "playlists",
-          // Pega o campo 'ordem' da tabela de junção
-          through: {
-            attributes: ["ordem"],
-          },
         },
       ],
       order: [
@@ -114,12 +107,10 @@ export const getAllTiposSessao = async (req, res) => {
     // --- FIM DA CORREÇÃO ---
     res.status(200).json(tipos);
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Erro ao buscar tipos de sessão.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao buscar tipos de sessão.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -130,7 +121,13 @@ export const getTipoSessaoById = async (req, res) => {
         {
           model: db.Playlist,
           as: "playlists",
-          through: { attributes: ["ordem"] },
+          include: [
+            {
+              model: db.Musica,
+              as: "musicas",
+              attributes: ["id", "titulo", "autor", "path"],
+            },
+          ],
         },
       ],
     });
@@ -140,12 +137,10 @@ export const getTipoSessaoById = async (req, res) => {
         .json({ message: "Tipo de sessão não encontrado." });
     res.status(200).json(tipoSessao);
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Erro ao buscar tipo de sessão.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao buscar tipo de sessão.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -154,12 +149,10 @@ export const createTipoSessao = async (req, res) => {
     const novoTipo = await db.TipoSessao.create(req.body);
     res.status(201).json(novoTipo);
   } catch (error) {
-    res
-      .status(400)
-      .json({
-        message: "Erro ao criar tipo de sessão.",
-        errorDetails: error.message,
-      });
+    res.status(400).json({
+      message: "Erro ao criar tipo de sessão.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -175,12 +168,10 @@ export const updateTipoSessao = async (req, res) => {
     const updatedItem = await db.TipoSessao.findByPk(req.params.id);
     res.status(200).json(updatedItem);
   } catch (error) {
-    res
-      .status(400)
-      .json({
-        message: "Erro ao atualizar tipo de sessão.",
-        errorDetails: error.message,
-      });
+    res.status(400).json({
+      message: "Erro ao atualizar tipo de sessão.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -195,12 +186,10 @@ export const deleteTipoSessao = async (req, res) => {
         .json({ message: "Tipo de sessão não encontrado." });
     res.status(204).send();
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Erro ao deletar tipo de sessão.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao deletar tipo de sessão.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -215,12 +204,10 @@ export const getAllPlaylists = async (req, res) => {
     });
     res.status(200).json(playlists);
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Erro ao buscar playlists.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao buscar playlists.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -233,12 +220,10 @@ export const getPlaylistById = async (req, res) => {
       return res.status(404).json({ message: "Playlist não encontrada." });
     res.status(200).json(playlist);
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Erro ao buscar playlist.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao buscar playlist.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -247,12 +232,10 @@ export const createPlaylist = async (req, res) => {
     const novaPlaylist = await db.Playlist.create(req.body);
     res.status(201).json(novaPlaylist);
   } catch (error) {
-    res
-      .status(400)
-      .json({
-        message: "Erro ao criar playlist.",
-        errorDetails: error.message,
-      });
+    res.status(400).json({
+      message: "Erro ao criar playlist.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -266,12 +249,10 @@ export const updatePlaylist = async (req, res) => {
     const updatedItem = await db.Playlist.findByPk(req.params.id);
     res.status(200).json(updatedItem);
   } catch (error) {
-    res
-      .status(400)
-      .json({
-        message: "Erro ao atualizar playlist.",
-        errorDetails: error.message,
-      });
+    res.status(400).json({
+      message: "Erro ao atualizar playlist.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -288,14 +269,53 @@ export const deletePlaylist = async (req, res) => {
     await playlist.destroy();
     res.status(204).send();
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Erro ao deletar playlist.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao deletar playlist.",
+      errorDetails: error.message,
+    });
   }
 };
+
+// --- INÍCIO DA MODIFICAÇÃO ---
+/**
+ * POST /api/harmonia/playlists/:playlistId/musicas
+ * Adiciona uma música já existente a uma playlist.
+ */
+export const addMusicaToPlaylist = async (req, res) => {
+  const { playlistId } = req.params;
+  const { musicaId } = req.body;
+
+  if (!musicaId) {
+    return res.status(400).json({ message: "O ID da música é obrigatório." });
+  }
+
+  try {
+    const playlist = await db.Playlist.findByPk(playlistId);
+    if (!playlist) {
+      return res.status(404).json({ message: "Playlist não encontrada." });
+    }
+
+    const musica = await db.Musica.findByPk(musicaId);
+    if (!musica) {
+      return res.status(404).json({ message: "Música não encontrada." });
+    }
+
+    // Atualiza o campo 'playlistId' da música para associá-la à nova playlist
+    await musica.update({ playlistId: playlist.id });
+
+    res.status(200).json({
+      message: "Música adicionada à playlist com sucesso!",
+      musica: musica,
+    });
+  } catch (error) {
+    console.error("Erro ao adicionar música à playlist:", error);
+    res.status(500).json({
+      message: "Erro ao adicionar música à playlist.",
+      errorDetails: error.message,
+    });
+  }
+};
+// --- FIM DA MODIFICAÇÃO ---
 
 // --- CRUD para Musicas ---
 export const getAllMusicas = async (req, res) => {
@@ -303,12 +323,10 @@ export const getAllMusicas = async (req, res) => {
     const musicas = await db.Musica.findAll({ order: [["titulo", "ASC"]] });
     res.status(200).json(musicas);
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Erro ao buscar músicas.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao buscar músicas.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -346,12 +364,10 @@ export const createMusica = async (req, res) => {
     res.status(201).json(novaMusica);
   } catch (error) {
     removeAudioFile(req.file.path);
-    res
-      .status(400)
-      .json({
-        message: "Erro ao adicionar música.",
-        errorDetails: error.message,
-      });
+    res.status(400).json({
+      message: "Erro ao adicionar música.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -365,12 +381,10 @@ export const updateMusica = async (req, res) => {
     const updatedItem = await db.Musica.findByPk(req.params.id);
     res.status(200).json(updatedItem);
   } catch (error) {
-    res
-      .status(400)
-      .json({
-        message: "Erro ao atualizar música.",
-        errorDetails: error.message,
-      });
+    res.status(400).json({
+      message: "Erro ao atualizar música.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -383,12 +397,10 @@ export const deleteMusica = async (req, res) => {
     await musica.destroy();
     res.status(204).send();
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Erro ao deletar música.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao deletar música.",
+      errorDetails: error.message,
+    });
   }
 };
 
@@ -415,11 +427,9 @@ export const assignPlaylistsToTipoSessao = async (req, res) => {
       .status(200)
       .json({ message: "Sequência de playlists definida com sucesso!" });
   } catch (error) {
-    res
-      .status(500)
-      .json({
-        message: "Erro ao definir sequência.",
-        errorDetails: error.message,
-      });
+    res.status(500).json({
+      message: "Erro ao definir sequência.",
+      errorDetails: error.message,
+    });
   }
 };

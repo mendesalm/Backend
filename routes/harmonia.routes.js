@@ -75,6 +75,15 @@ router.delete(
   harmoniaController.deletePlaylist
 );
 
+// --- INÍCIO DA MODIFICAÇÃO ---
+// Endpoint específico para adicionar uma música existente a uma playlist
+router.post(
+  "/playlists/:playlistId/musicas",
+  canManagePlaylists, // Requer permissão para gerenciar playlists
+  harmoniaController.addMusicaToPlaylist
+);
+// --- FIM DA MODIFICAÇÃO ---
+
 // --- Rotas de Gerenciamento de Músicas ---
 router.get("/musicas", canManageMusicas, harmoniaController.getAllMusicas);
 router.get("/musicas/:id", canManageMusicas, harmoniaController.getMusicaById);

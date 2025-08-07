@@ -15,7 +15,10 @@ export default (sequelize, DataTypes) => {
 
   TipoSessao.associate = function (models) {
     TipoSessao.belongsToMany(models.Playlist, {
-      through: models.TipoSessaoPlaylist,
+      through: {
+        model: models.TipoSessaoPlaylist,
+        attributes: [], // Exclui os atributos da tabela de junção aqui
+      },
       foreignKey: "tipoSessaoId",
       otherKey: "playlistId",
       as: "playlists",
