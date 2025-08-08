@@ -16,4 +16,9 @@ jobs:
             cd /root/sysjpj/Backend
             git pull origin main
             npm install
-            pm2 restart backend
+            echo "Verificando PM2..."
+            which pm2
+            pm2 --version || echo "PM2 não encontrado!"
+            pm2 list || echo "Erro ao listar processos!"
+            pm2 restart backend || echo "Erro ao reiniciar backend!"
+
